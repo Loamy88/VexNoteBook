@@ -50,17 +50,17 @@ DoingSequence = []
 class Init:
     def __init__(self):
         if brain.battery.capacity() <= 75:
-            brain.print("Battery low")
+            brain.screen.print("Battery low")
         if brain.buttonLeft.pressing():
             self.Debug = True
             brain.screen.print("Debug Mode")
         else:
             self.Debug = False
         self.Control = Controller()
-        self.BeamArm = MotorGroup(Motor(Ports.PORT5), Motor(Ports.PORT12, True))
+        self.BeamArm = MotorGroup(Motor(Ports.PORT7), Motor(Ports.PORT1, True))
         self.BeamArm.set_stopping(HOLD)
-        self.Claws = Pneumatic(Ports.PORT9)
-        self.PinArm = MotorGroup(Motor(Ports.PORT6), Motor(Ports.PORT10, True))
+        self.Claws = Pneumatic(Ports.PORT11)
+        self.PinArm = MotorGroup(Motor(Ports.PORT10), Motor(Ports.PORT4, True))
         self.PinArm.set_stopping(HOLD)
         self.PinArm.set_position(0, DEGREES)
         #  - Simplicity for controlling the claws -
@@ -71,8 +71,8 @@ class Init:
         self.DriveMotors = self.InitDrive()
     class InitDrive:
         def __init__(self):
-            self.Left = Motor(Ports.PORT3, True)
-            self.Right = Motor(Ports.PORT11)
+            self.Left = Motor(Ports.PORT9, True)
+            self.Right = Motor(Ports.PORT3)
             self.Main = MotorGroup(self.Left, self.Right)
             self.Main.set_velocity(100, PERCENT)
     class InitPID:
@@ -175,6 +175,8 @@ def Drive():
             Sides[1].spin(FORWARD if LeftSide > 0 else REVERSE)
         while "drive" in DoingSequence:
             wait(30, MSEC)
+        if Robot.Debug:
+            print("Left:", Robot.DriveMotors.Left.velocity(PERCENT), "  Right:", Robot.DriveMotors.Right.velocity(PERCENT))
 
 def ClawControl():
     while True:
