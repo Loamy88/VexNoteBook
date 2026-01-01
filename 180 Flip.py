@@ -197,6 +197,14 @@ def ArmControl():
             Robot.BeamArm.spin(FORWARD)
         if Robot.Control.buttonRDown.pressing(): # Lower beam arm
             Robot.BeamArm.spin(REVERSE)
+
+        if Robot.BeamArm.position(DEGREES) < 85:
+            Robot.BeamArm.set_stopping(COAST)
+            if Robot.BeamArm.position(DEGREES) < 0:
+                Robot.BeamArm.reset_position()
+        else:
+            Robot.BeamArm.set_stopping(HOLD)
+
         if not Robot.Control.buttonRUp.pressing() and not Robot.Control.buttonRDown.pressing() and not "beam" in DoingSequence: # Check for beam arm not moving
             Robot.BeamArm.stop()
         if Robot.Control.buttonLUp.pressing(): # Lift pin arm
@@ -207,8 +215,7 @@ def ArmControl():
             Robot.PinArm.spin(FORWARD)
         if Robot.Control.buttonLDown.pressing(): # Lower pin arm
             Robot.PinArm.spin(REVERSE)
-            if Robot.PinArm.position(DEGREES) < -5:
-                Robot.PinArm.set_position(0, DEGREES)
+
             if Robot.Debug: # disable to stop auto releasing pins
                 if Robot.PinArm.velocity(PERCENT) < 5:
                     if Delay < 100:
@@ -219,6 +226,14 @@ def ArmControl():
                     Delay = 0
         else:
             Delay = 0
+
+        if Robot.PinArm.position(DEGREES) < 50:
+            Robot.PinArm.set_stopping(COAST)
+            if Robot.PinArm.position(DEGREES) < 0:
+                Robot.PinArm.reset_position()
+        else:
+            Robot.PinArm.set_stopping(HOLD)
+
         if not Robot.Control.buttonLUp.pressing() and not Robot.Control.buttonLDown.pressing() and not "pin" in DoingSequence: # Check for pin arm not moving
             Robot.PinArm.stop()
 
