@@ -43,20 +43,22 @@ from vex import *
 # Globals
 DriveMode = "tank"
 DoingSequence = []
+LiftingBeam = None
+Aligned = False
 
 
 # Initialize Motors
 
 class Init:
     def __init__(self):
-        if brain.battery.capacity() <= 75:
-            brain.screen.print("Battery low")
+        self.LowBat()
         if brain.buttonLeft.pressing():
             self.Debug = True
             brain.screen.print("Debug Mode")
         else:
             self.Debug = False
         self.Control = Controller()
+        self.Light = Touchled(Ports.PORT6)
         self.BeamArm = MotorGroup(Motor(Ports.PORT7), Motor(Ports.PORT1, True))
         self.BeamArm.set_stopping(HOLD)
         self.Claws = Pneumatic(Ports.PORT11)
@@ -69,12 +71,36 @@ class Init:
         for motor in [self.BeamArm, self.PinArm]:
             motor.set_velocity(100, PERCENT)
         self.DriveMotors = self.InitDrive()
+        self.Aligner = self.InitAligner()
+        self.Light.on()
+        self.Light.set_color(Color.RED)
+    def LowBat(self):
+        if brain.battery.capacity() <= 75:
+            print("Low Battery:", brain.battery.capacity())
+            Percent = brain.battery.capacity() / 100
+            brain.screen.set_fill_color(Color.RED)
+            brain.screen.set_pen_color(Color.RED)
+            brain.screen.draw_rectangle(40, 29, 81 * Percent, 52)
+            brain.screen.set_pen_width(6)
+            brain.screen.set_fill_color(Color.TRANSPARENT)
+            brain.screen.set_pen_color(Color.WHITE)
+            brain.screen.draw_rectangle(34, 23, 90, 60)
+            brain.screen.set_fill_color(Color.WHITE)
+            brain.screen.set_pen_width(1)
+            brain.screen.draw_rectangle(27, 43, 8, 24)
     class InitDrive:
         def __init__(self):
             self.Left = Motor(Ports.PORT9, True)
             self.Right = Motor(Ports.PORT3)
             self.Main = MotorGroup(self.Left, self.Right)
             self.Main.set_velocity(100, PERCENT)
+    class InitAligner:
+        def __init__(self):
+            self.PneumaticDevice = Pneumatic(Ports.PORT8)
+        def down(self):
+            self.PneumaticDevice.extend(CYLINDER1)
+        def up(self):
+            self.PneumaticDevice.retract(CYLINDER1)
     class InitPID:
         def __init__(self, kP, kI, kD, WheelDiameter):
             print("[DEBUG] Initializing PID Controller...", end="")
@@ -146,6 +172,7 @@ Robot.PID = Robot.InitPID(0.4, 0.0006, 0.25, 3)
 def Clamp(Num, Max=100, Min=-100):
     return max(min(Num, Max), Min)
 
+
 def Drive():
     global DriveMode
     while True:
@@ -164,15 +191,15 @@ def Drive():
             Sides[0].stop()
         else:
             # Spin the side at the speed 0-100 in the correct direction.
-            Sides[0].set_velocity(abs(RightSide), PERCENT)
-            Sides[0].spin(FORWARD if RightSide > 0 else REVERSE)
+            Sides[0].set_velocity(RightSide, PERCENT)
+            Sides[0].spin(FORWARD)
         # Check if the speed is in the deadband range.
         if LeftSide < 6 and LeftSide > -6:
             Sides[1].stop()
         else:
             # Spin the side at the speed 0-100 in the correct direction.
-            Sides[1].set_velocity(abs(LeftSide), PERCENT)
-            Sides[1].spin(FORWARD if LeftSide > 0 else REVERSE)
+            Sides[1].set_velocity(LeftSide, PERCENT)
+            Sides[1].spin(FORWARD)
         while "drive" in DoingSequence:
             wait(30, MSEC)
         if Robot.Debug:
@@ -198,7 +225,7 @@ def ArmControl():
         if Robot.Control.buttonRDown.pressing(): # Lower beam arm
             Robot.BeamArm.spin(REVERSE)
 
-        if Robot.BeamArm.position(DEGREES) < 85:
+        if Robot.BeamArm.position(DEGREES) < 58:
             Robot.BeamArm.set_stopping(COAST)
             if Robot.BeamArm.position(DEGREES) < 0:
                 Robot.BeamArm.reset_position()
@@ -208,8 +235,8 @@ def ArmControl():
         if not Robot.Control.buttonRUp.pressing() and not Robot.Control.buttonRDown.pressing() and not "beam" in DoingSequence: # Check for beam arm not moving
             Robot.BeamArm.stop()
         if Robot.Control.buttonLUp.pressing(): # Lift pin arm
-            if (Robot.PinArm.position(DEGREES) / 3) > 90 and Robot.Debug: # disable to stop auto slow down
-                    pos = (Robot.PinArm.position(DEGREES) / 3) - 85
+            if (Robot.PinArm.position(DEGREES) * 3) > 90 and False: # disable to stop auto slow down
+                    pos = (Robot.PinArm.position(DEGREES) * 3) - 85
                     Robot.PinArm.set_velocity(Clamp(round(100 - (1.045 ** pos)), 0, 100), PERCENT)
                     print(pos, ": ", round(100 - (1.045 ** pos)), sep="")
             Robot.PinArm.spin(FORWARD)
@@ -240,24 +267,40 @@ def ArmControl():
 def SwitchModes():
     global DriveMode
     DriveMode = "tank" if DriveMode == "arcade" else "arcade"
+    if DriveMode == "tank":
+        Robot.Light.set_color(Color.RED)
+    else:
+        Robot.Light.set_color(Color.BLUE)
+
+def BeamAligner():
+    global Aligned
+    if Aligned:
+        Robot.Aligner.up()
+        Aligned = False
+    else:
+        Robot.Aligner.down()
+        Aligned = True
 
 
 def PlaceStack():
     global DoingSequence
-    DoingSequence.append("pin", "drive")
-    Robot.DriveMotors.Main.set_velocity(20, PERCENT)
-    Robot.DriveMotors.Main.spin(REVERSE)
-    wait(240, MSEC)
-    Robot.DriveMotors.Main.set_velocity(100, PERCENT)
-    # Places pins in the claw onto pins in the current slots
-    Robot.DriveMotors.Main.spin(FORWARD)
-    Robot.PinArm.spin(REVERSE)
-    wait(400, MSEC)
-    Robot.Claws.retract(Robot.Pin)
-    Robot.DriveMotors.Main.stop()
-    Robot.PinArm.stop()
-    DoingSequence.remove("drive")
-    DoingSequence.remove("pin")
+
+def StopCheck():
+    Pressing = False
+    Count = 0
+    while True:
+        wait(50, MSEC)
+        if Robot.Control.buttonR3.pressing() and Robot.Control.buttonL3.pressing():
+            Count += 1
+        else:
+            Count = 0
+        if Count == 40:
+            Robot.Aligner.up()
+            brain.program_stop()
+        if Count == 20:
+            brain.play_note(2, 3, 400)
+            Robot.Aligner.up()
+            Robot.LowBat()
 
 def Num2Let(n):
     result = ''
@@ -275,8 +318,8 @@ def main():
         ArmThread = Thread(ArmControl)
         ClawThread = Thread(ClawControl)
         Robot.Control.buttonR3.pressed(SwitchModes)
-        Stop = brain.program_stop
-        Robot.Control.buttonL3.pressed(Stop)
+        Robot.Control.buttonL3.pressed(BeamAligner)
+        StopThread = Thread(StopCheck)
         if sd.is_inserted():
             print("[DEBUG] SD Card Found, Starting Saved Video")
             if sd.exists("Videos\\Merica6FPS\\a.bmp"):
