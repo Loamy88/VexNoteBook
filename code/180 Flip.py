@@ -41,7 +41,7 @@ from vex import *
 
 version = "1.0.0"
 
-print("180 Flip Code - Version:", version)
+print("180 Flip Code Version:", version)
 
 
 # Globals
