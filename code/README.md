@@ -1,11 +1,11 @@
-### Code Details and Versions  
+# Code Details and Versions  
 
 ## Version 1.0.0:  
 
 - Initial setup on github  
 
 
-# Main Features: 
+### Main Features: 
 
 1. Init class:  
     - Sets up the python objects for motors, pneumatics, ect.  
