@@ -39,12 +39,19 @@ print("[DEBUG] Starting...")
 # Library imports
 from vex import *
 
+version = "1.0.0"
+
+print("180 Flip Code - Version:", version)
+
 
 # Globals
 DriveMode = "tank"
 DoingSequence = []
 LiftingBeam = None
 Aligned = False
+ActiveBAS = False
+Flipping = None
+Lifting = None
 
 
 # Initialize Motors
@@ -71,9 +78,20 @@ class Init:
         for motor in [self.BeamArm, self.PinArm]:
             motor.set_velocity(100, PERCENT)
         self.DriveMotors = self.InitDrive()
-        self.Aligner = self.InitAligner()
+        self.PneumaticAlignerBAS = Pneumatic(Ports.PORT8)
+        self.Aligner = self.InitAligner(self.PneumaticAlignerBAS)
+        self.BAS = self.InitBAS(self.PneumaticAlignerBAS)
         self.Light.on()
         self.Light.set_color(Color.RED)
+        self.L3 = False
+        self.Control.buttonL3.pressed(self.PressL3)
+        self.Control.buttonL3.released(self.ReleaseL3)
+    def PressL3(self):
+        self.L3 = True
+    def ReleaseL3(self):
+        wait(100, MSEC)
+        if not self.Control.buttonL3.pressing():
+            self.L3 = False
     def LowBat(self):
         if brain.battery.capacity() <= 75:
             print("Low Battery:", brain.battery.capacity())
@@ -95,12 +113,19 @@ class Init:
             self.Main = MotorGroup(self.Left, self.Right)
             self.Main.set_velocity(100, PERCENT)
     class InitAligner:
-        def __init__(self):
-            self.PneumaticDevice = Pneumatic(Ports.PORT8)
+        def __init__(self, Pn):
+            self.PneumaticDevice = Pn
         def down(self):
             self.PneumaticDevice.extend(CYLINDER1)
         def up(self):
             self.PneumaticDevice.retract(CYLINDER1)
+    class InitBAS:
+        def __init__(self, Pn):
+            self.PneumaticDevice = Pn
+        def down(self):
+            self.PneumaticDevice.extend(CYLINDER2)
+        def up(self):
+            self.PneumaticDevice.retract(CYLINDER2)
     class InitPID:
         def __init__(self, kP, kI, kD, WheelDiameter):
             print("[DEBUG] Initializing PID Controller...", end="")
@@ -176,6 +201,7 @@ def Clamp(Num, Max=100, Min=-100):
 def Drive():
     global DriveMode
     while True:
+        wait(8, MSEC)
         a = Robot.Control.axisA.position()
         c = Robot.Control.axisC.position()
         d = Robot.Control.axisD.position()
@@ -207,6 +233,7 @@ def Drive():
 
 def ClawControl():
     while True:
+        wait(8, MSEC)
         if Robot.Control.buttonFDown.pressing(): # Beam claw open
             Robot.Claws.retract(Robot.Beam)
         if Robot.Control.buttonFUp.pressing(): # Beam claw close
@@ -217,52 +244,53 @@ def ClawControl():
             Robot.Claws.extend(Robot.Pin)
 
 def ArmControl():
-    global DoingSequence
+    global DoingSequence, Flipping, Lifting
     Delay = 0
     while True:
-        if Robot.Control.buttonRUp.pressing(): # Lift beam arm
-            Robot.BeamArm.spin(FORWARD)
-        if Robot.Control.buttonRDown.pressing(): # Lower beam arm
-            Robot.BeamArm.spin(REVERSE)
+        wait(8, MSEC)
+        if not Robot.L3:
+            if Robot.Control.buttonRUp.pressing(): # Lift beam arm
+                if Lifting:
+                    Lifting.stop()
+                    Lifting = None
+                    Robot.BeamArm.set_velocity(100, PERCENT)
+                Robot.BeamArm.spin(FORWARD)
+            if Robot.Control.buttonRDown.pressing(): # Lower beam arm
+                if Lifting:
+                    Lifting.stop()
+                    Lifting = None
+                    Robot.BeamArm.set_velocity(100, PERCENT)
+                Robot.BeamArm.spin(REVERSE)
+            if Robot.BeamArm.position(DEGREES) < 58:
+                Robot.BeamArm.set_stopping(COAST)
+                if Robot.BeamArm.position(DEGREES) < 0:
+                    Robot.BeamArm.reset_position()
+            else:
+                Robot.BeamArm.set_stopping(HOLD)
 
-        if Robot.BeamArm.position(DEGREES) < 58:
-            Robot.BeamArm.set_stopping(COAST)
-            if Robot.BeamArm.position(DEGREES) < 0:
-                Robot.BeamArm.reset_position()
-        else:
-            Robot.BeamArm.set_stopping(HOLD)
+            if not Robot.Control.buttonRUp.pressing() and not Robot.Control.buttonRDown.pressing() and not "beam" in DoingSequence: # Check for beam arm not moving
+                if not Lifting:
+                    Robot.BeamArm.stop()
+            if Robot.Control.buttonLUp.pressing(): # Lift pin arm
+                if Flipping:
+                    Flipping.stop()
+                    Flipping = None
+                Robot.PinArm.spin(FORWARD)
+            if Robot.Control.buttonLDown.pressing(): # Lower pin arm
+                Robot.PinArm.spin(REVERSE)
+                if Flipping:
+                    Flipping.stop()
+                    Flipping = None
+            if Robot.PinArm.position(DEGREES) < 50:
+                Robot.PinArm.set_stopping(COAST)
+                if Robot.PinArm.position(DEGREES) < 0:
+                    Robot.PinArm.reset_position()
+            else:
+                Robot.PinArm.set_stopping(HOLD)
 
-        if not Robot.Control.buttonRUp.pressing() and not Robot.Control.buttonRDown.pressing() and not "beam" in DoingSequence: # Check for beam arm not moving
-            Robot.BeamArm.stop()
-        if Robot.Control.buttonLUp.pressing(): # Lift pin arm
-            if (Robot.PinArm.position(DEGREES) * 3) > 90 and False: # disable to stop auto slow down
-                    pos = (Robot.PinArm.position(DEGREES) * 3) - 85
-                    Robot.PinArm.set_velocity(Clamp(round(100 - (1.045 ** pos)), 0, 100), PERCENT)
-                    print(pos, ": ", round(100 - (1.045 ** pos)), sep="")
-            Robot.PinArm.spin(FORWARD)
-        if Robot.Control.buttonLDown.pressing(): # Lower pin arm
-            Robot.PinArm.spin(REVERSE)
-
-            if Robot.Debug: # disable to stop auto releasing pins
-                if Robot.PinArm.velocity(PERCENT) < 5:
-                    if Delay < 100:
-                        Delay += 1
-                    else:
-                        Robot.Claws.retract(Robot.Pin)
-                else:
-                    Delay = 0
-        else:
-            Delay = 0
-
-        if Robot.PinArm.position(DEGREES) < 50:
-            Robot.PinArm.set_stopping(COAST)
-            if Robot.PinArm.position(DEGREES) < 0:
-                Robot.PinArm.reset_position()
-        else:
-            Robot.PinArm.set_stopping(HOLD)
-
-        if not Robot.Control.buttonLUp.pressing() and not Robot.Control.buttonLDown.pressing() and not "pin" in DoingSequence: # Check for pin arm not moving
-            Robot.PinArm.stop()
+            if not Robot.Control.buttonLUp.pressing() and not Robot.Control.buttonLDown.pressing() and not "pin" in DoingSequence: # Check for pin arm not moving
+                if not Flipping:
+                    Robot.PinArm.stop()
 
 def SwitchModes():
     global DriveMode
@@ -274,16 +302,86 @@ def SwitchModes():
 
 def BeamAligner():
     global Aligned
-    if Aligned:
-        Robot.Aligner.up()
-        Aligned = False
+    if Robot.L3:
+        if Aligned:
+            Robot.Aligner.up()
+            Aligned = False
+        else:
+            Robot.Aligner.down()
+            Aligned = True
+
+def ActivateBAS():
+    global ActiveBAS
+    if Robot.L3:
+        if ActiveBAS:
+            Robot.BAS.up()
+            ActiveBAS = False
+        else:
+            Robot.BAS.down()
+            ActiveBAS = True
+
+def RunAutoFlip():
+    global Flipping
+    if Robot.PinArm.position(DEGREES) / 3 > 150:
+        direction = REVERSE
+        def check():
+            return Robot.PinArm.position(DEGREES) / 3 > 30
     else:
-        Robot.Aligner.down()
-        Aligned = True
+        direction = FORWARD
+        def check():
+            return Robot.PinArm.position(DEGREES) / 3 < 150
+    Robot.PinArm.spin(direction)
+    while check():
+        wait(150, MSEC)
+    wait(400, MSEC)
+    Robot.PinArm.stop()
+    Flipping = None
 
+def AutoFlip():
+    global Flipping
+    if Robot.L3:
+        if Flipping:
+            Flipping.stop()
+            Flipping = None
+        else:
+            Flipping = Thread(RunAutoFlip)
 
-def PlaceStack():
-    global DoingSequence
+def RunAutoLift():
+    global Lifting
+    if Robot.BeamArm.position(DEGREES) / 5 > 45:
+        direction = REVERSE
+        target = 30
+        def check():
+            return Robot.BeamArm.position(DEGREES) / 5 > 30
+    else:
+        direction = FORWARD
+        target = 100
+        def check():
+            return Robot.BeamArm.position(DEGREES) / 5 < 100
+    Robot.BeamArm.set_velocity(100, PERCENT)
+    Robot.BeamArm.spin(direction)
+    if direction == FORWARD:
+        while check():
+            wait(20, MSEC)
+            power = min((abs(target - Robot.BeamArm.position(DEGREES) / 5) + 30) * 1.05, 100)
+            Robot.BeamArm.set_velocity(power, PERCENT)
+            Robot.BeamArm.spin(direction)
+    else:
+        while check():
+            wait(150, MSEC)
+    wait(400, MSEC)
+    Robot.BeamArm.stop()
+    Robot.BeamArm.set_velocity(100, PERCENT)
+    Lifting = None
+
+def AutoLift():
+    global Lifting
+    if Robot.L3:
+        if Lifting:
+            Lifting.stop()
+            Lifting = None
+        else:
+            Lifting = Thread(RunAutoLift)
 
 def StopCheck():
     Pressing = False
@@ -318,7 +416,10 @@ def main():
         ArmThread = Thread(ArmControl)
         ClawThread = Thread(ClawControl)
         Robot.Control.buttonR3.pressed(SwitchModes)
-        Robot.Control.buttonL3.pressed(BeamAligner)
+        Robot.Control.buttonRDown.pressed(BeamAligner)
+        Robot.Control.buttonLDown.pressed(ActivateBAS)
+        Robot.Control.buttonLUp.pressed(AutoFlip)
+        Robot.Control.buttonRUp.pressed(AutoLift)
         StopThread = Thread(StopCheck)
         if sd.is_inserted():
             print("[DEBUG] SD Card Found, Starting Saved Video")
