@@ -247,6 +247,14 @@ def ClawAlignerControl():
         if True:
             wait(8, MSEC)
 
+            # ----- Checking Claw -----
+            #
+            # pump: 1xxx xxxx xxxx xxxx xxxx
+            # cyninder 1: xxxx xxxx xx11 xxxx xx11
+            # cylinder 2: xxxx xxxx x1xx xxxx x1xx
+            #
+            # Ex. 1000 0000 0100 0000 0100 (claws.status() = 66564)
+
             if Robot.Control.buttonFDown.pressing() and FDownReady: # Beam claw toggle
                 if Robot.Claws.status() & Robot.BeamBinary == Robot.BeamBinary:
                     # Check if claw is open with returned bits from pneumatic status
@@ -282,7 +290,7 @@ def ClawAlignerControl():
             else:
                 EUpReady = True
 
-                
+
         else:
             # - Secondary Mode (Not in use) -
 
