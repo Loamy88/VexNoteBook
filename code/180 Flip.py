@@ -239,9 +239,6 @@ def ClawAlignerControl():
     EUpReady = True
     EDownReady = True
 
-    pump = value & 65536 == 65536
-    cylinder1 = value & 771 == 771
-    cylinder2 = value & 1028 == 1028
 
     while True:
         if True:
@@ -249,9 +246,9 @@ def ClawAlignerControl():
 
             # ----- Checking Claw -----
             #
-            # pump: 1xxx xxxx xxxx xxxx xxxx
-            # cyninder 1: xxxx xxxx xx11 xxxx xx11
-            # cylinder 2: xxxx xxxx x1xx xxxx x1xx
+            # pump: 1000 0000 0000 0000 (65536)
+            # cyninder 1: 0000 0000 0011 0000 0011 (771)
+            # cylinder 2: 0000 0000 0100 0000 0100 (1028)
             #
             # Ex. 1000 0000 0100 0000 0100 (claws.status() = 66564)
 
