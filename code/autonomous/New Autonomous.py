@@ -77,6 +77,7 @@ class Init:
             motor.set_velocity(100, PERCENT)
         self.DriveMotors = self.InitDrive()
         self.DriveMotors.Main.set_stopping(BRAKE)
+        self.Reset()
         print("[DEBUG] Initilized")
     def LowBat(self):
         print("Low Battery:", brain.battery.capacity())
@@ -170,7 +171,7 @@ class Init:
             DegreesPerWheelRotation = 360 / GearRatio
             self.DegreesPerInch = DegreesPerWheelRotation / (WheelDiameter * math.pi)
             print("  PID Initialized")
-        def Drive(self, Direction, TargetDistance, StopID=None, k=None, RightMotor=None, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
+        def Drive(self, Direction, TargetDistance, StopID=None, k=None, RightMotor=None, LeftMotor=None, Unit=DEGREES, Reset=True, SpeedScale=1, Timeout=999000):
             global OverallScale, PIDStopper
             if StopID:
                 PIDStopper[StopID] = False
@@ -182,8 +183,8 @@ class Init:
             if not LeftMotor:
                 LeftMotor = self.DefaultLeft
             if Reset:
-                LeftMotor.reset_position()
-                RightMotor.reset_position()
+                LeftStart = LeftMotor.position(Unit)
+                RightStart = RightMotor.position(Unit)
             TargetPos = self.DegreesPerInch * TargetDistance
             if not k:
                 k = self.k
@@ -196,8 +197,8 @@ class Init:
             LeftLastError = 0
             #f = open("logs.txt", "w")
             while TimeoutTimer.time(MSEC) < Timeout:
-                RightPos = RightMotor.position(DEGREES) * (-1 if Direction == REVERSE else 1)
-                LeftPos = LeftMotor.position(DEGREES) * (-1 if Direction == REVERSE else 1)
+                RightPos = (RightMotor.position(Unit) - RightStart) * (-1 if Direction == REVERSE else 1)
+                LeftPos = (LeftMotor.position(Unit) - LeftStart) * (-1 if Direction == REVERSE else 1)
                 RightError = TargetPos - RightPos
                 LeftError = TargetPos - LeftPos
                 RightIntegral += RightError
@@ -303,7 +304,7 @@ class Init:
             print("Spin", Motor_, Direction, Distance_, "Degrees")
             TimeoutTimer = Timer()
             if Reset:
-                Motor_.reset_position()
+                Start = Motor_.position(Unit)
             if not k:
                 k = self.k
             kP = k[0]
@@ -312,7 +313,7 @@ class Init:
             Integral = 0
             LastError = 0
             while TimeoutTimer.time(MSEC) < Timeout:
-                Pos = Motor_.position(Unit) * GearRatio
+                Pos = (Motor_.position(Unit) - Start) * GearRatio
                 Error = Distance_ - Pos
                 Integral += Error
                 Integral = Clamp(Integral, 300, -300)
@@ -340,53 +341,82 @@ class Init:
             return
 
 
-    class InitPTP:
-        def __init__(self, RobotObject, x=None, y=None, Units=INCHES):
-            self.Robot = RobotObject
-            self.Units = Units
-            self.InertialObject = Inertial()
-            if x:
-                self.x = x
-            if y:
-                self.y = y
-            self.Reset()
+class InitPTP:
+    def __init__(self, RobotObject, x=None, y=None, Units=INCHES):
+        self.Units = Units
+        self.InertialObject = Inertial()
+        if x:
+            self.x = x
+        if y:
+            self.y = y
+        self.Reset()
+        
+    def DegreesToInches(self, degrees):
+        return degrees / Robot.PID.DegreesPerInch
 
-        def TrackLocation(self):
-            while True:
-                
+    def CloseTracking(self):
+        self.Tracking = False
+
+    def TrackLocation(self):
+        self.Tracking = True
+
+        LastMotorPos = self.MotorPos()
+
+        while self.Tracking:
+            CurrentMotorPos = self.MotorPos()
+
+            # Find Movement and Angle
+            Change = self.DegreesToInches(CurrentMotorPos - LastMotorPos)
+            CurrentAngle = self.Angle()
+
+            # Calculate the Change in x and y
+            ChangeX = math.degrees(math.cos(CurrentAngle)) * Change
+            ChangeY = math.degrees(math.sin(CurrentAngle)) * Change
+
+            # Apply Change
+            self.x += ChangeX
+            self.y += ChangeY
             
-        def Reset(self):
-            self.x = 8.5
-            self.y = 9.375
-            self.InertialObject.reset_heading()
-        def Angle(self):
-            return self.InertialObject.heading(DEGREES)
+            # Reset LastMotorPos
+            LastMotorPos = CurrentMotorPos
 
-        def ToPoint(self, Point, Direction=FORWARD, SpeedScale=1, TurnScale=1, DriveScale=1, DriveTimeout=999000):
-            x_loc, y_loc = Point
-            while True:
-                angle_to_turn_to = math.radians(math.atan2(y_loc - self.y, x_loc - self.x))
-                if Direction == REVERSE:
-                    angle_to_turn_to += 180
-                # - Turn -
-                degrees_to_turn = (angle_to_turn_to - self.Angle()) % 360
-                if degrees_to_turn > 180:
-                    degrees_to_turn -= 360
-                if degrees_to_turn < -180:
-                    degrees_to_turn += 360
-                if degrees_to_turn < 0:
-                    turn_angle = LEFT
-                    degrees_to_turn *= -1
-                else:
-                    turn_angle = RIGHT
-                
-                if abs(degrees_to_turn) > 2:
-                    self.Robot.PID.Turn(turn_angle, degrees_to_turn, SpeedScale=(SpeedScale * TurnScale))
+        
+    def Reset(self):
+        self.x = 8.5
+        self.y = 9.375
+        self.InertialObject.reset_heading()
 
-                # - Drive -
-                Distance = math.sqrt((x_loc - self.x) ** 2 + (y_loc, self.y) ** 2)
+    def Angle(self):
+        return self.InertialObject.heading(DEGREES)
 
-                self.Robot.PID.Drive(Direction, Distance)
+    def MotorPos(self):
+        return (Robot.DriveMotors.Right.position(DEGREES) + Robot.DriveMotors.Right.position(DEGREES)) / 2
+
+    def ToPoint(self, Point, Direction=FORWARD, SpeedScale=1, TurnScale=1, DriveScale=1, DriveTimeout=999000):
+        x_loc, y_loc = Point
+        while True:
+            angle_to_turn_to = math.radians(math.atan2(y_loc - self.y, x_loc - self.x))
+            if Direction == REVERSE:
+                angle_to_turn_to += 180
+            # - Turn -
+            degrees_to_turn = (angle_to_turn_to - self.Angle()) % 360
+            if degrees_to_turn > 180:
+                degrees_to_turn -= 360
+            if degrees_to_turn < -180:
+                degrees_to_turn += 360
+            if degrees_to_turn < 0:
+                turn_angle = LEFT
+                degrees_to_turn *= -1
+            else:
+                turn_angle = RIGHT
+            
+            if abs(degrees_to_turn) > 2:
+                Robot.PID.Turn(turn_angle, degrees_to_turn, SpeedScale=(SpeedScale * TurnScale))
+
+            # - Drive -
+            Distance = math.sqrt((x_loc - self.x) ** 2 + (y_loc, self.y) ** 2)
+
+            Robot.PID.Drive(Direction, Distance)
 
 
 
@@ -395,7 +425,7 @@ class Init:
 
 Robot = Init()
 Robot.PID = Robot.InitPID(0.34, 0.002, 0.55, 2.5, 2.5, Drive=(Robot.DriveMotors.Right, Robot.DriveMotors.Left))
-Robot.PTP = Robot.InitPTP(Robot)
+PTP = InitPTP()
 
 def Clamp(Num, Max=100, Min=-100):
     return max(min(Num, Max), Min)

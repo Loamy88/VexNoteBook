@@ -39,7 +39,7 @@ print("[DEBUG] Starting...")
 # Library imports
 from vex import *
 
-version = "1.0.0"
+version = "1.1.0"
 
 print("180 Flip Code Version:", version)
 
@@ -49,7 +49,7 @@ DriveMode = "tank"
 DoingSequence = []
 LiftingBeam = None
 Aligned = False
-ActiveBAS = False
+ActivePinAligner = False
 Flipping = None
 Lifting = None
 
@@ -74,13 +74,15 @@ class Init:
         self.PinArm.set_position(0, DEGREES)
         #  - Simplicity for controlling the claws -
         self.Beam = CYLINDER1
+        self.BeamBinary = 771
         self.Pin = CYLINDER2
+        self.PinBinary = 1028
         for motor in [self.BeamArm, self.PinArm]:
             motor.set_velocity(100, PERCENT)
         self.DriveMotors = self.InitDrive()
-        self.PneumaticAlignerBAS = Pneumatic(Ports.PORT8)
-        self.Aligner = self.InitAligner(self.PneumaticAlignerBAS)
-        self.BAS = self.InitBAS(self.PneumaticAlignerBAS)
+        self.PneumaticAlignerPinAligner = Pneumatic(Ports.PORT8)
+        self.Aligner = self.InitAligner(self.PneumaticAlignerPinAligner)
+        self.PinAligner = self.InitPinAligner(self.PneumaticAlignerPinAligner)
         self.Light.on()
         self.Light.set_color(Color.RED)
         self.L3 = False
@@ -119,7 +121,7 @@ class Init:
             self.PneumaticDevice.extend(CYLINDER1)
         def up(self):
             self.PneumaticDevice.retract(CYLINDER1)
-    class InitBAS:
+    class InitPinAligner:
         def __init__(self, Pn):
             self.PneumaticDevice = Pn
         def down(self):
@@ -231,17 +233,68 @@ def Drive():
         if Robot.Debug:
             print("Left:", Robot.DriveMotors.Left.velocity(PERCENT), "  Right:", Robot.DriveMotors.Right.velocity(PERCENT))
 
-def ClawControl():
+def ClawAlignerControl():
+    FUpReady = True
+    FDownReady = True
+    EUpReady = True
+    EDownReady = True
+
+    pump = value & 65536 == 65536
+    cylinder1 = value & 771 == 771
+    cylinder2 = value & 1028 == 1028
+
     while True:
-        wait(8, MSEC)
-        if Robot.Control.buttonFDown.pressing(): # Beam claw open
-            Robot.Claws.retract(Robot.Beam)
-        if Robot.Control.buttonFUp.pressing(): # Beam claw close
-            Robot.Claws.extend(Robot.Beam)
-        if Robot.Control.buttonEDown.pressing(): # Pin claw open
-            Robot.Claws.retract(Robot.Pin)
-        if Robot.Control.buttonEUp.pressing(): # Pin claw close
-            Robot.Claws.extend(Robot.Pin)
+        if True:
+            wait(8, MSEC)
+
+            if Robot.Control.buttonFDown.pressing() and FDownReady: # Beam claw toggle
+                if Robot.Claws.status() & Robot.BeamBinary == Robot.BeamBinary:
+                    # Check if claw is open with returned bits from pneumatic status
+                    Robot.Claws.retract(Robot.Beam)
+                else:
+                    Robot.Claws.extend(Robot.Beam)
+                FDownReady = False
+            else:
+                FDownReady = True
+
+
+            if Robot.Control.buttonFUp.pressing() and FUpReady: # Beam aligner toggle
+                BeamAligner()
+                FUpReady = False
+            else:
+                FUpReady = True
+
+                
+            if Robot.Control.buttonEDown.pressing() and EDownReady: # Pin claw toggle
+                if Robot.Claws.status() & Robot.PinBinary == Robot.PinBinary:
+                    # Check if claw is open with returned bits from pneumatic status
+                    Robot.Claws.retract(Robot.Pin)
+                else:
+                    Robot.Claws.extend(Robot.Pin)
+                EDownReady = False
+            else:
+                EDownReady = True
+
+
+            if Robot.Control.buttonEUp.pressing() and EUpReady: # Pin aligner toggle
+                ActivatePinAligner()
+                EUpReady = False
+            else:
+                EUpReady = True
+
+                
+        else:
+            # - Secondary Mode (Not in use) -
+
+            wait(8, MSEC)
+            if Robot.Control.buttonFDown.pressing(): # Beam claw open
+                Robot.Claws.retract(Robot.Beam)
+            if Robot.Control.buttonFUp.pressing(): # Beam claw close
+                Robot.Claws.extend(Robot.Beam)
+            if Robot.Control.buttonEDown.pressing(): # Pin claw open
+                Robot.Claws.retract(Robot.Pin)
+            if Robot.Control.buttonEUp.pressing(): # Pin claw close
+                Robot.Claws.extend(Robot.Pin)
 
 def ArmControl():
     global DoingSequence, Flipping, Lifting
@@ -310,15 +363,15 @@ def BeamAligner():
             Robot.Aligner.down()
             Aligned = True
 
-def ActivateBAS():
-    global ActiveBAS
+def ActivatePinAligner():
+    global ActivePinAligner
     if Robot.L3:
-        if ActiveBAS:
-            Robot.BAS.up()
-            ActiveBAS = False
+        if ActivePinAligner:
+            Robot.PinAligner.up()
+            ActivePinAligner = False
         else:
-            Robot.BAS.down()
-            ActiveBAS = True
+            Robot.PinAligner.down()
+            ActivePinAligner = True
 
 def RunAutoFlip():
     global Flipping
@@ -414,10 +467,10 @@ def main():
     try:
         DriveThread = Thread(Drive)
         ArmThread = Thread(ArmControl)
-        ClawThread = Thread(ClawControl)
+        ClawAlignerThread = Thread(ClawAlignerControl)
         Robot.Control.buttonR3.pressed(SwitchModes)
         Robot.Control.buttonRDown.pressed(BeamAligner)
-        Robot.Control.buttonLDown.pressed(ActivateBAS)
+        Robot.Control.buttonLDown.pressed(ActivatePinAligner)
         Robot.Control.buttonLUp.pressed(AutoFlip)
         Robot.Control.buttonRUp.pressed(AutoLift)
         StopThread = Thread(StopCheck)

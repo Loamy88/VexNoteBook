@@ -45,21 +45,25 @@
 
     - Does a battery check after ~1 second of being pressed  
 
-## Version 2.0.0 (March XX, 2026) - WORK IN PROGRESS (Listed Goals):  
+## Version 1.0.1 (March 12, 2026):
 
-- New autonomous system: PTP  
+- Shift L-Down now toggles our active pin aligner
 
-### Main Features:  
+## Version 1.1.0 (March 17, 2026):  
 
-1. New Paths:  
-    - This new system might allow for a longer route  
-    - When developing the the route, we might extend it beyond simply 110 points  
+- Make F-Down and E-Down (back paddles) toggle claws
+- Make F-Up and E-Up (upper paddles) toggle aligners
+- Works better with the new controller attachment
 
-2. The PTP (Point-to-Point) Autonomous System:  
-    - Tracks the location and heading  
-    - When trcaking location, sensors hitting a black line will adjust the position to be more accurate  
-    - Calculates the angle and distance to travel to the next point  
-    - Uses PID to accurately drive set distances and to turn
+### Main Features:
 
-3. Driving Route:
-    - We currently don't have the path set up
+1. Ready Checks:
+    - For each button, the program saves if it is ready to be pressed
+    - The action for the button only happens if it is ready, and it will make no longer ready
+    - If the button isn't pressed, it will become ready again
+    - This insures that each time it is pressed, the action only happens once
+
+2. Checking for Open Claws:
+    - The program uses ```pneumatic.status()``` to check if the claws are open
+    - It uses a bitwise ```&``` to see if the returned integer has the bits to signify an extended cylinder ex. ```if pneumatic.status() & 1028 == 1028:```
+    - It will then open or close the claw
