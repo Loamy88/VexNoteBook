@@ -74,9 +74,10 @@ class Init:
         self.PinArm.set_position(0, DEGREES)
         #  - Simplicity for controlling the claws -
         self.Beam = CYLINDER1
-        self.BeamBinary = 771
+        self.BeamBinary = 768
         self.Pin = CYLINDER2
-        self.PinBinary = 1028
+        self.PinBinary = 3
+        self.ClawMode = "ONEBUTTONTOGGLE"
         for motor in [self.BeamArm, self.PinArm]:
             motor.set_velocity(100, PERCENT)
         self.DriveMotors = self.InitDrive()
@@ -240,55 +241,62 @@ def ClawAlignerControl():
     EDownReady = True
 
 
-    while True:
-        if True:
+    
+    if Robot.ClawMode = "ONEBUTTONTOGGLE":
+        while True:
             wait(8, MSEC)
 
             # ----- Checking Claw -----
             #
             # pump: 1000 0000 0000 0000 (65536)
-            # cyninder 1: 0000 0000 0011 0000 0011 (771)
-            # cylinder 2: 0000 0000 0100 0000 0100 (1028)
+            # cyninder 1: 0000 0000 0011 0000 0000 (768)
+            # cylinder 2: 0000 0000 0000 0000 0011 (3)
             #
             # Ex. 1000 0000 0100 0000 0100 (claws.status() = 66564)
 
-            if Robot.Control.buttonFDown.pressing() and FDownReady: # Beam claw toggle
-                if Robot.Claws.status() & Robot.BeamBinary == Robot.BeamBinary:
-                    # Check if claw is open with returned bits from pneumatic status
-                    Robot.Claws.retract(Robot.Beam)
-                else:
-                    Robot.Claws.extend(Robot.Beam)
-                FDownReady = False
+            if Robot.Control.buttonFDown.pressing(): # Beam claw toggle
+                if FDownReady:
+                    print(bin(Robot.Claws.status()))
+                    if Robot.Claws.status() & Robot.BeamBinary == Robot.BeamBinary:
+                        # Check if claw is open with returned bits from pneumatic status
+                        Robot.Claws.retract(Robot.Beam)
+                    else:
+                        Robot.Claws.extend(Robot.Beam)
+                    FDownReady = False
             else:
                 FDownReady = True
 
 
-            if Robot.Control.buttonFUp.pressing() and FUpReady: # Beam aligner toggle
-                BeamAligner()
-                FUpReady = False
+            if Robot.Control.buttonFUp.pressing(): # Beam aligner toggle
+                if FUpReady:
+                    BeamAligner(NoL3=True)
+                    FUpReady = False
             else:
                 FUpReady = True
 
                 
-            if Robot.Control.buttonEDown.pressing() and EDownReady: # Pin claw toggle
-                if Robot.Claws.status() & Robot.PinBinary == Robot.PinBinary:
-                    # Check if claw is open with returned bits from pneumatic status
-                    Robot.Claws.retract(Robot.Pin)
-                else:
-                    Robot.Claws.extend(Robot.Pin)
-                EDownReady = False
+            if Robot.Control.buttonEDown.pressing(): # Pin claw toggle
+                if EDownReady:
+                    if Robot.Claws.status() & Robot.PinBinary == Robot.PinBinary:
+                        # Check if claw is open with returned bits from pneumatic status
+                        Robot.Claws.retract(Robot.Pin)
+                    else:
+                        Robot.Claws.extend(Robot.Pin)
+                    EDownReady = False
             else:
                 EDownReady = True
 
 
-            if Robot.Control.buttonEUp.pressing() and EUpReady: # Pin aligner toggle
-                ActivatePinAligner()
-                EUpReady = False
+            if Robot.Control.buttonEUp.pressing(): # Pin aligner toggle
+                if EUpReady:
+                    ActivatePinAligner(NoL3=True)
+                    EUpReady = False
             else:
                 EUpReady = True
 
 
-        else:
+    elif Robot.ClawMode == "TWOBUTTONOPENCLOSE":
+        while True:
             # - Secondary Mode (Not in use) -
 
             wait(8, MSEC)
@@ -358,9 +366,9 @@ def SwitchModes():
     else:
         Robot.Light.set_color(Color.BLUE)
 
-def BeamAligner():
+def BeamAligner(NoL3=False):
     global Aligned
-    if Robot.L3:
+    if Robot.L3 or NoL3:
         if Aligned:
             Robot.Aligner.up()
             Aligned = False
@@ -368,9 +376,9 @@ def BeamAligner():
             Robot.Aligner.down()
             Aligned = True
 
-def ActivatePinAligner():
+def ActivatePinAligner(NoL3=False):
     global ActivePinAligner
-    if Robot.L3:
+    if Robot.L3 or NoL3:
         if ActivePinAligner:
             Robot.PinAligner.up()
             ActivePinAligner = False
