@@ -39,7 +39,7 @@ print("[DEBUG] Starting...")
 # Library imports
 from vex import *
 
-version = "1.1.0"
+version = "1.1.1"
 
 print("180 Flip Code Version:", version)
 
@@ -65,6 +65,7 @@ class Init:
         else:
             self.Debug = False
         self.Control = Controller()
+        self.IsStopping = False
         self.Light = Touchled(Ports.PORT6)
         self.BeamArm = MotorGroup(Motor(Ports.PORT7), Motor(Ports.PORT1, True))
         self.BeamArm.set_stopping(HOLD)
@@ -195,7 +196,7 @@ class Init:
 
 
 Robot = Init()
-Robot.PID = Robot.InitPID(0.4, 0.0006, 0.25, 3)
+# Robot.PID = Robot.InitPID(0.4, 0.0006, 0.25, 3)
 
 def Clamp(Num, Max=100, Min=-100):
     return max(min(Num, Max), Min)
@@ -456,8 +457,10 @@ def StopCheck():
         wait(50, MSEC)
         if Robot.Control.buttonR3.pressing() and Robot.Control.buttonL3.pressing():
             Count += 1
+            Robot.IsStopping = True
         else:
             Count = 0
+            Robot.IsStopping = False
         if Count == 40:
             Robot.Aligner.up()
             brain.program_stop()
@@ -488,28 +491,31 @@ def main():
         Robot.Control.buttonRUp.pressed(AutoLift)
         StopThread = Thread(StopCheck)
         if sd.is_inserted():
-            print("[DEBUG] SD Card Found, Starting Saved Video")
-            if sd.exists("Videos\\Merica6FPS\\a.bmp"):
-                brain.screen.render()
-                WaitTime = 1000 / 6
-                while True:
-                    i = 0
-                    Video = True
-                    while Video:
-                        i += 1
-                        VidTimer.clear()
-                        FileName = "Videos\\Merica6FPS\\" + Num2Let(i) + ".bmp"
-                        if sd.exists(FileName):
-                            brain.screen.clear_screen()
-                            brain.screen.draw_image_from_file(FileName, 40, 32)
-                            brain.screen.render()
-                            while VidTimer.time() < WaitTime:
-                                pass
-                        else:
-                            print("[DEBUG] Ended Video")
-                            Video = False
-            else:
-                print("[ERROR] Video Files Not Found")
+            print("[DEBUG] SD Card Found, Tracking Movement")
+            try:
+                if not sd.exists("TravelDistance.txt"):
+                    sd.savefile("TravelDistance.txt", bytearray("0"))
+                    current_distance = 0
+                else:
+                    current_distance = int(sd.loadfile("TravelDistance.txt"))
+                previous_positions = (0, 0)
+                while sd.is_inserted():
+
+                    if not (brain.buttonCheck.pressing() or Robot.IsStopping):
+
+                        change = 0
+                        current_positions = (Robot.DriveMotors.Right.position(DEGREES), Robot.DriveMotors.Left.position(DEGREES))
+
+                        for side_index, side_position in enumerate(current_positions):
+                            change += side_position - previous_positions[side_index]
+                        
+                        change /= 2
+
+                        current_distance += change
+                        sd.savefile("TravelDistance.txt", bytearray(str(current_distance)))
+
+                        wait(12, MSEC)
+                    
     except Exception as e:
         print("[ERROR]", e)
 

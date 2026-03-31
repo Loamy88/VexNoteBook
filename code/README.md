@@ -67,3 +67,7 @@
     - The program uses `pneumatic.status()` to check if the claws are open
     - It uses a bitwise `&` to see if the returned integer has the bits to signify an extended cylinder ex. `if pneumatic.status() & 768 == 768:`
     - It will then open or close the claw
+
+## Version 1.1.1 (March 30, 2026):
+
+- Added a loop to the main thread to track wheel movement, persisting through program runs. It is saved to the sd if it is inserted with `brain.sdcard.isinserted`
