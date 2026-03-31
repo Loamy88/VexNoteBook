@@ -38,12 +38,14 @@ initializeRandomSeed()
 print("[DEBUG] Starting...")
 # Library imports
 from vex import *
+import sys
+import json
 
 OverallScale = 1.13
 PIDStopper = {}
 
 
-version = "1.0.0"
+version = "2.0.0"
 
 print("180 Flip Autonomous Code Version:", version)
 
@@ -342,20 +344,25 @@ class Init:
 
 
 class InitPTP:
-    def __init__(self, RobotObject, x=None, y=None, Units=INCHES):
+    def __init__(self, x=None, y=None, Units=INCHES, DoReset=True, InitialPos=(0, 0)):
         self.Units = Units
         self.InertialObject = Inertial()
+        self.InitialPos = InitialPos
+        self.RunningPTP = False
+        self.x, self.y = 0.0, 0.0
+        if DoReset:
+            self.Reset()
         if x:
-            self.x = x
+            self.x = float(x)
         if y:
-            self.y = y
-        self.Reset()
+            self.y = float(y)
         
     def DegreesToInches(self, degrees):
         return degrees / Robot.PID.DegreesPerInch
 
-    def CloseTracking(self):
+    def close(self):
         self.Tracking = False
+        self.RunningPTP = False
 
     def TrackLocation(self):
         self.Tracking = True
@@ -382,8 +389,7 @@ class InitPTP:
 
         
     def Reset(self):
-        self.x = 8.5
-        self.y = 9.375
+        self.x, self.y = self.InitialPos
         self.InertialObject.reset_heading()
 
     def Angle(self):
@@ -394,12 +400,16 @@ class InitPTP:
 
     def ToPoint(self, Point, Direction=FORWARD, SpeedScale=1, TurnScale=1, DriveScale=1, DriveTimeout=999000):
         x_loc, y_loc = Point
-        while True:
+        IsDriving = False
+        self.RunningPTP = True
+        while self.RunningPTP:
             angle_to_turn_to = math.radians(math.atan2(y_loc - self.y, x_loc - self.x))
             if Direction == REVERSE:
                 angle_to_turn_to += 180
             # - Turn -
             degrees_to_turn = (angle_to_turn_to - self.Angle()) % 360
+
+            # Get optimal turn direction
             if degrees_to_turn > 180:
                 degrees_to_turn -= 360
             if degrees_to_turn < -180:
@@ -410,13 +420,25 @@ class InitPTP:
             else:
                 turn_angle = RIGHT
             
-            if abs(degrees_to_turn) > 2:
+            if abs(degrees_to_turn) > 2.5:
+                # If the angle is off then turn
                 Robot.PID.Turn(turn_angle, degrees_to_turn, SpeedScale=(SpeedScale * TurnScale))
+                DriveThread.stop()
+                IsDriving = False
 
-            # - Drive -
-            Distance = math.sqrt((x_loc - self.x) ** 2 + (y_loc, self.y) ** 2)
+            if not IsDriving:
+                # Drive if the robot isn't already doing so
+                Distance = math.sqrt((x_loc - self.x) ** 2 + (y_loc, self.y) ** 2)
 
-            Robot.PID.Drive(Direction, Distance)
+                DriveThread = Thread(Robot.PID.Drive, (Direction, Distance))
+                IsDriving = True
+
+                # Check for stopping the PTP
+                if math.sqrt((x_loc - self.x) ** 2 + (y_loc, self.y) ** 2) < 0.3:
+                    self.RunningPTP = False
+
+        DriveThread.stop()
+        self.RunningPTP = False
 
 
 
@@ -463,106 +485,42 @@ def Autonomous():
 
     # -- Get First Pins --
 
-    Robot.PID.Drive(FORWARD, 15.5, SpeedScale=0.7)
-    Robot.Pin.Grab()
-    Robot.PID.Turn(LEFT, 23.5, SpeedScale=1.2)
-    Robot.Pin.Release()
-    Robot.PID.Drive(FORWARD, 7, SpeedScale=0.8)
-    Robot.Pin.Grab()
-    Robot.PID.Turn(LEFT, 40, SpeedScale=1.3)
-    Robot.PinArm.set_stopping(HOLD)
-    Robot.BeamArm.set_stopping(HOLD)
-
-
+    Going = True
+    while Going:
+        line = sys.stdin.readline()
+        if line:
+            location = json.load(line.strip())
+            PTP.ToPoint(location)
 
 
     # -- Get Second Pins --
 
-    Robot.PID.SpinMotor(Robot.PinArm, FORWARD, 50, GearRatio=(1 / 3), SpeedScale=8)
-    Robot.PID.Drive(FORWARD, 12, SpeedScale=0.9)
-    Robot.PID.Turn(RIGHT, 20, SpeedScale=1.5)
-    Robot.PID.Drive(FORWARD, 2.2, SpeedScale=0.8)
-    Robot.PID.Turn(RIGHT, 9.5, SpeedScale=1.5)
-    Robot.PID.Drive(FORWARD, 15, SpeedScale=0.8)
+    # Placeholder
 
 
     # -- Stack --
 
-    Robot.PinArm.set_velocity(76, PERCENT)
-    Robot.PinArm.set_max_torque(8, PERCENT)
-    Robot.PinArm.spin(REVERSE)
-    Robot.PID.Drive(FORWARD, 1.5, SpeedScale=0.6)
-    Robot.Pin.Release()
-    Robot.PinArm.set_max_torque(100, PERCENT)
-    Robot.PID.SpinMotor(Robot.PinArm, REVERSE, 20, GearRatio=(1 / 3), SpeedScale=7, Timeout=500)
-    Robot.PID.Drive(FORWARD, 2, SpeedScale=0.9)
-    Robot.Pin.Grab()
+    # Placeholder
 
 
     # -- Get Beam --
 
-    Robot.PID.Turn(RIGHT, 78.5, SpeedScale=1.2)
-    Robot.PID.SpinMotor(Robot.PinArm, FORWARD, 40, SpeedScale=6)
-    Robot.PID.Drive(FORWARD, 14.85, SpeedScale=0.8)
-    Robot.PID.Turn(RIGHT, 53.5, SpeedScale=1.35)
-    wait(200, MSEC)
-    Robot.DriveMotors.Main.set_velocity(100, PERCENT)
-    Robot.DriveMotors.Main.spin(REVERSE)
-    wait(1500, MSEC)
-    Robot.DriveMotors.Main.stop()
-    Robot.PID.Drive(REVERSE, 2, SpeedScale=0.7, Timeout=250)
-    Robot.Beam.Grab()
+    # Placeholder
 
 
     # -- Flip Pins --
 
-    Robot.PID.Drive(FORWARD, 4, SpeedScale=0.8)
-    Robot.PID.SpinMotor(Robot.BeamArm, FORWARD, 14, GearRatio=(1 / 5), SpeedScale=3, Timeout=750)
-    Robot.PID.SpinMotor(Robot.PinArm, FORWARD, 200, GearRatio=(1 / 3), SpeedScale=5, Timeout=2000)
-    wait(60, MSEC)
-    Robot.Pin.Release()
-    wait(140, MSEC)
-    Robot.PinArm.set_velocity(100, PERCENT)
-    Robot.PinArm.spin(REVERSE)
-    wait(2000, MSEC)
-    Robot.PinArm.stop()
+    # Placeholder
 
 
     # -- Put Pin on Standoff --
 
-    Robot.PID.SpinMotor(Robot.BeamArm, FORWARD, 120, GearRatio=(1 / 5), SpeedScale=4, Timeout=2000)
-    Robot.Pin.Grab()
-    Robot.PID.Drive(FORWARD, 4, SpeedScale=1.2)
-    Thread(Robot.StopSpinning)
-    Robot.PID.Turn(RIGHT, 19, SpeedScale=4.8, StopID="SpinningFunction")
-    Robot.Pin.Release()
-    Robot.PID.Drive(FORWARD, 21, SpeedScale=0.6, Timeout=1400)
-    wait(75, MSEC)
-    if Robot.Dist.object_distance(MM) > 100:
-        # Missed Standoff
-        Robot.PID.Drive(REVERSE, 10, SpeedScale=1.5)
-        Thread(Robot.StopSpinning)
-        Robot.PID.Turn(RIGHT, 19, SpeedScale=4.8, StopID="SpinningFunction")
-        Robot.Pin.Release()
-        Robot.PID.Drive(FORWARD, 21, SpeedScale=0.6, Timeout=1400)
-        wait(75, MSEC)
-    Robot.PID.Drive(REVERSE, 8, SpeedScale=1.4)
+    # Placeholder
 
 
     # -- Put Beam on Standoff Pin --
 
-    Robot.PID.Turn(RIGHT, 159, SpeedScale=2.1)
-    Robot.PID.Drive(REVERSE, 30, SpeedScale=0.95, Timeout=1200)
-    Robot.PID.Drive(REVERSE, 30, SpeedScale=1.3, Timeout=1350)
-    ReverseDrive = CreateThread(Robot.PID.Drive, (REVERSE, 30, 1))
-    CreateThread.broadcast()
-    Robot.PID.SpinMotor(Robot.BeamArm, REVERSE, 28, GearRatio=(1 / 5), SpeedScale=5, Timeout=545)
-    Robot.Beam.Release()
-    Robot.PID.SpinMotor(Robot.BeamArm, REVERSE, 4, GearRatio=(1 / 5), SpeedScale=5, Timeout=750)
-    wait(300, MSEC)
-    Robot.PID.SpinMotor(Robot.BeamArm, FORWARD, 20, GearRatio=(1 / 5), SpeedScale=3, Timeout=750)
-    PIDStopper[1] = True
-    Robot.PID.Drive(FORWARD, 15)
+    # Placeholder
 
 
     return

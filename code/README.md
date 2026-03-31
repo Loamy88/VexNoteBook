@@ -26,7 +26,7 @@
     - Lifts and lowers the beam arm with R-Up and R-Down  
     - Lifts and lowers the pin arm with L-Up and L-Down  
     - Controls stopping arms  
-    - Applies whether something is being "auto-lifted/flip" to disable other controls  
+    - Applies whether something is being "auto-lifted/flipped" to disable other controls  
   
 4. Claw control thread:  
     - Opens and closes the beam claw with F-Up and F-Down  
@@ -64,6 +64,6 @@
     - This insures that each time it is pressed, the action only happens once
 
 2. Checking for Open Claws:
-    - The program uses ```pneumatic.status()``` to check if the claws are open
-    - It uses a bitwise ```&``` to see if the returned integer has the bits to signify an extended cylinder ex. ```if pneumatic.status() & 1028 == 1028:```
+    - The program uses `pneumatic.status()` to check if the claws are open
+    - It uses a bitwise `&` to see if the returned integer has the bits to signify an extended cylinder ex. `if pneumatic.status() & 768 == 768:`
     - It will then open or close the claw
