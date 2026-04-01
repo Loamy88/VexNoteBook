@@ -398,6 +398,9 @@ class InitPTP:
     def MotorPos(self):
         return (Robot.DriveMotors.Right.position(DEGREES) + Robot.DriveMotors.Right.position(DEGREES)) / 2
 
+    def MotorVel(self):
+        return (Robot.DriveMotors.Right.velocity(PERCENT) + Robot.DriveMotors.Right.velocity(PERCENT)) / 2
+
     def ToPoint(self, Point, Direction=FORWARD, SpeedScale=1, TurnScale=1, DriveScale=1, DriveTimeout=999000):
         x_loc, y_loc = Point
         IsDriving = False
@@ -420,11 +423,12 @@ class InitPTP:
             else:
                 turn_angle = RIGHT
             
-            if abs(degrees_to_turn) > 2.5:
+            if abs(degrees_to_turn) > 2.5 and math.sqrt((x_loc - self.x) ** 2 + (y_loc, self.y) ** 2) > 1.5:
                 # If the angle is off then turn
-                Robot.PID.Turn(turn_angle, degrees_to_turn, SpeedScale=(SpeedScale * TurnScale))
                 DriveThread.stop()
                 IsDriving = False
+                StopDrivingSmooth()
+                Robot.PID.Turn(turn_angle, degrees_to_turn, SpeedScale=(SpeedScale * TurnScale))
 
             if not IsDriving:
                 # Drive if the robot isn't already doing so
@@ -439,6 +443,13 @@ class InitPTP:
 
         DriveThread.stop()
         self.RunningPTP = False
+    
+    def StopDrivingSmooth(self, Rate=0.99):
+        CurrentVelocity = 100
+        while CurrentVelocity > 10:
+            CurrentVelocity = self.MotorVel()
+            Robot.DriveMotors.Right.set_velocity(CurrentVelocity * Rate, PERCENT)
+            Robot.DriveMotors.Left.set_velocity(CurrentVelocity * Rate, PERCENT)
 
 
 
