@@ -405,6 +405,7 @@ class InitPTP:
         x_loc, y_loc = Point
         IsDriving = False
         self.RunningPTP = True
+        self.DriveThread = None
         while self.RunningPTP:
             angle_to_turn_to = math.radians(math.atan2(y_loc - self.y, x_loc - self.x))
             if Direction == REVERSE:
@@ -423,25 +424,26 @@ class InitPTP:
             else:
                 turn_angle = RIGHT
             
-            if abs(degrees_to_turn) > 2.5 and math.sqrt((x_loc - self.x) ** 2 + (y_loc, self.y) ** 2) > 1.5:
-                # If the angle is off then turn
-                DriveThread.stop()
+            if abs(degrees_to_turn) > 7.5 and math.sqrt((x_loc - self.x) ** 2 + (y_loc - self.y) ** 2) > 0.5:
+                # If the angle is off then stop driving forward and turn
+                if self.DriveThread != type(None):
+                    self.DriveThread.stop()
                 IsDriving = False
-                StopDrivingSmooth()
+                self.StopDrivingSmooth()
                 Robot.PID.Turn(turn_angle, degrees_to_turn, SpeedScale=(SpeedScale * TurnScale))
 
             if not IsDriving:
                 # Drive if the robot isn't already doing so
-                Distance = math.sqrt((x_loc - self.x) ** 2 + (y_loc, self.y) ** 2)
+                Distance = math.sqrt((x_loc - self.x) ** 2 + (y_loc - self.y) ** 2)
 
-                DriveThread = Thread(Robot.PID.Drive, (Direction, Distance))
+                self.DriveThread = Thread(Robot.PID.Drive, (Direction, Distance))
                 IsDriving = True
 
                 # Check for stopping the PTP
-                if math.sqrt((x_loc - self.x) ** 2 + (y_loc, self.y) ** 2) < 0.3:
+                if math.sqrt((x_loc - self.x) ** 2 + (y_loc - self.y) ** 2) < 0.3:
                     self.RunningPTP = False
 
-        DriveThread.stop()
+        self.DriveThread.stop()
         self.RunningPTP = False
     
     def StopDrivingSmooth(self, Rate=0.99):
@@ -500,7 +502,14 @@ def Autonomous():
     while Going:
         line = sys.stdin.readline()
         if line:
-            location = json.load(line.strip())
+            print(repr(line))
+            print(repr("1 1\n"))
+            line = str(line).replace("'", "")
+            print(repr(line))
+            location_with_strings = line.split()
+            location = []
+            for num in location_with_strings:
+                location.append(float(num))
             PTP.ToPoint(location)
 
 
