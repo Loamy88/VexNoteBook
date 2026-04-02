@@ -243,7 +243,7 @@ def ClawAlignerControl():
 
 
     
-    if Robot.ClawMode = "ONEBUTTONTOGGLE":
+    if Robot.ClawMode == "ONEBUTTONTOGGLE":
         while True:
             wait(8, MSEC)
 
@@ -515,6 +515,8 @@ def main():
                         sd.savefile("TravelDistance.txt", bytearray(str(current_distance)))
 
                         wait(12, MSEC)
+            except Exception as e:
+                print("Travel Distance Saving Failed:", e)
                     
     except Exception as e:
         print("[ERROR]", e)
