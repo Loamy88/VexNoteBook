@@ -71,3 +71,7 @@
 ## Version 1.1.1 (March 30, 2026):
 
 - Added a loop to the main thread to track wheel movement, persisting through program runs. It is saved to the sd if it is inserted with `brain.sdcard.isinserted`
+
+## New Robot Version 0.2.0 (April 2, 2026):
+
+- Update ports for testing from main code for the new robot
