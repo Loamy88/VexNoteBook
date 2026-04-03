@@ -49,7 +49,7 @@ DriveMode = "tank"
 DoingSequence = []
 LiftingBeam = None
 Aligned = False
-ActivePinAligner = False
+ActivePinAligner = True
 Flipping = None
 Lifting = None
 
