@@ -511,7 +511,7 @@ def main():
                         
                         change /= 2
 
-                        current_distance += change
+                        current_distance += abs(change)
                         sd.savefile("TravelDistance.txt", bytearray(str(current_distance)))
 
                         wait(12, MSEC)
