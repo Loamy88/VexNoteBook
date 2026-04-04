@@ -22,9 +22,9 @@
     - Uses other function calls to open and close claws  
 
 
-## Version 2.0.0 (March XX, 2026) - WORK IN PROGRESS (Listed Goals):  
+## Version 2.0.0 (April XX, 2026) - WORK IN PROGRESS (Listed Goals):  
 
-- New autonomous system: PTP  
+- New autonomous system: Point-To-Point (PTP)  
 
 ### Main Features:  
 
@@ -32,7 +32,7 @@
     - This new system might allow for a longer route  
     - When developing the the route, we might extend it beyond simply 110 points  
 
-2. The PTP (Point-to-Point) Autonomous System:  
+2. Point-To-Point (PTP) Autonomous System:  
     - Tracks the location and heading  
     - When trcaking location, sensors hitting a black line will adjust the position to be more accurate  
     - Calculates the angle and distance to travel to the next point  
@@ -40,3 +40,7 @@
 
 3. Driving Route:
     - We currently don't have the path set up
+
+4. Optimization:
+    - Recently, the autonomous code has been getting large (~20KB) and we have been getting memory allocation errors on program startup
+    - Reducing the excessive use of some functions and classes has helped to lower memory usage
