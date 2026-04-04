@@ -35,13 +35,21 @@ initializeRandomSeed()
 # ------------------------------------------
 
 
-print("[DEBUG] Starting...")
+print("\033[2J\n\033[34m-====-   Program Start   -====-\033[0m\n")
+
+DEBUG = "\033[35m[DEBUG]\033[0m"
+ERROR = "\033[31m[ERROR]\033[0m"
+
+
+print(DEBUG, "Starting...")
 # Library imports
 from vex import *
 
 version = "1.1.1"
 
-print("180 Flip Code Version:", version)
+print(DEBUG, "180 Flip Code Version:", version)
+
+
 
 
 # Globals
@@ -58,6 +66,7 @@ Lifting = None
 
 class Init:
     def __init__(self):
+        print(DEBUG, "Initilizing Devices")
         self.LowBat()
         if brain.buttonLeft.pressing():
             self.Debug = True
@@ -90,6 +99,7 @@ class Init:
         self.L3 = False
         self.Control.buttonL3.pressed(self.PressL3)
         self.Control.buttonL3.released(self.ReleaseL3)
+        print(DEBUG, "Devices Initilized")
     def PressL3(self):
         self.L3 = True
     def ReleaseL3(self):
@@ -98,7 +108,7 @@ class Init:
             self.L3 = False
     def LowBat(self):
         if brain.battery.capacity() <= 75:
-            print("Low Battery:", brain.battery.capacity())
+            print(DEBUG, "Low Battery:", brain.battery.capacity())
             Percent = brain.battery.capacity() / 100
             brain.screen.set_fill_color(Color.RED)
             brain.screen.set_pen_color(Color.RED)
@@ -132,10 +142,10 @@ class Init:
             self.PneumaticDevice.retract(CYLINDER2)
     class InitPID:
         def __init__(self, kP, kI, kD, WheelDiameter):
-            print("[DEBUG] Initializing PID Controller...", end="")
+            print(DEBUG, "Initializing PID Controller")
             self.k = [kP, kI, kD]
             self.DegreesPerInch = 360 / (WheelDiameter * math.pi)
-            print("  ...PID Initialized")
+            print(DEBUG, "PID Initialized")
         def Drive(self, Direction, RightMotor, LeftMotor, TargetDistance, Velocity, k):
             TargetPos = self.DegreesPerInch * TargetDistance
             kP = k[0]
@@ -194,9 +204,12 @@ class Init:
                 wait(20, MSEC)
 
 
+print("\n\033[34m---- Initilizing ----\n\033[0m")
 
 Robot = Init()
 # Robot.PID = Robot.InitPID(0.4, 0.0006, 0.25, 3)
+
+print("\n\033[34m---- Initilization Complete ----\n\033[0m")
 
 def Clamp(Num, Max=100, Min=-100):
     return max(min(Num, Max), Min)
@@ -491,16 +504,19 @@ def main():
         Robot.Control.buttonRUp.pressed(AutoLift)
         StopThread = Thread(StopCheck)
         if sd.is_inserted():
-            print("[DEBUG] SD Card Found, Tracking Movement")
+            print(DEBUG, "SD Card Found, Tracking Movement")
             try:
                 if not sd.exists("TravelDistance.txt"):
                     sd.savefile("TravelDistance.txt", bytearray("0"))
                     current_distance = 0
                 else:
-                    current_distance = int(sd.loadfile("TravelDistance.txt"))
+                    try:
+                        current_distance = int(sd.loadfile("TravelDistance.txt"))
+                    except Exception:
+                        sd.savefile("TravelDistance.txt", bytearray("0"))
+                        current_distance = 0
                 previous_positions = (0, 0)
                 while sd.is_inserted():
-
                     if not (brain.buttonCheck.pressing() or Robot.IsStopping):
 
                         change = 0
@@ -516,9 +532,9 @@ def main():
 
                         wait(12, MSEC)
             except Exception as e:
-                print("Travel Distance Saving Failed:", e)
+                print(ERROR, "Travel Distance Saving Failed:", e)
                     
     except Exception as e:
-        print("[ERROR]", e)
+        print(ERROR, e)
 
 main()

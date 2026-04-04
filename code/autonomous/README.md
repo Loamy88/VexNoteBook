@@ -40,7 +40,13 @@
 
 3. Driving Route:
     - We currently don't have the path set up
+    - The new system uses function calls like this:
+    ```python
+    TrackingThread = Thread(PTP.TrackLocation)
+    # Driving to Pin
+    PTP.ToPoint((1, 8.5), SpeedScale=1.5)
+    ```
 
 4. Optimization:
-    - Recently, the autonomous code has been getting large (~20KB) and we have been getting memory allocation errors on program startup
+    - Recently, the autonomous code has been getting large (~20KB with memory intensive code) and we have been getting memory allocation errors on program startup
     - Reducing the excessive use of some functions and classes has helped to lower memory usage

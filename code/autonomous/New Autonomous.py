@@ -35,7 +35,13 @@ initializeRandomSeed()
 # ------------------------------------------
 
 
-print("\033[0m[DEBUG] Starting...")
+print("\n\n\033[34m-====-   Program Start   -====-\033[0m\n")
+
+DEBUG = "\033[35m[DEBUG]\033[0m"
+ERROR = "\033[31m[ERROR]\033[0m"
+
+
+print(DEBUG, "Starting...")
 
 
 OverallScale = 1.13
@@ -44,9 +50,8 @@ PIDStopper = {}
 
 version = "2.0.0"
 
-print("180 Flip Autonomous Code Version:\033[35m", version, "\033[0m")
+print(DEBUG, "180 Flip Autonomous Code Version:", version)
 
-DEBUG = "\033[31m[DEBUG]\033[0m"
 
 
 # Initialize Motors
@@ -384,7 +389,7 @@ class InitPTP:
         self.x, self.y = self.InitialPos
         self.InertialObject.reset_heading()
 
-    def ToPoint(self, Point, Direction=FORWARD, SpeedScale=1, TurnScale=1.7, DriveScale=1, DriveTimeout=999000):
+    def ToPoint(self, Point, Direction=FORWARD, StopSmooth=True, SpeedScale=1, TurnScale=1.7, DriveScale=1, DriveTimeout=999000):
         x_loc, y_loc = Point
         if self.Debug:
             print("\033[0m - Driving from (", self.x, ", ", self.y, ") to (", x_loc, ", ", y_loc, ") -", sep="") # Driving from (x, y) to (x, y)
@@ -414,10 +419,10 @@ class InitPTP:
             if degrees_to_turn < -math.pi:
                 degrees_to_turn += 2 * math.pi
             if degrees_to_turn < 0:
-                turn_angle = LEFT
+                turn_direction = LEFT
                 degrees_to_turn *= -1
             else:
-                turn_angle = RIGHT
+                turn_direction = RIGHT
 
             degrees_to_turn = round(degrees_to_turn, 4)
             
@@ -429,8 +434,9 @@ class InitPTP:
                     self.DriveThread.stop()
                 IsDriving = False
                 self.StopDrivingSmooth()
-                Robot.PIDTurn(turn_angle, degrees_to_turn, SpeedScale=(SpeedScale * TurnScale), Radians=True)
-                wait(50, MSEC)
+                wait(90, MSEC)
+                Robot.PIDTurn(turn_direction, degrees_to_turn, SpeedScale=(SpeedScale * TurnScale), Radians=True)
+                wait(90, MSEC)
 
             if not IsDriving:
                 # Drive if the robot isn't already doing so
@@ -445,6 +451,8 @@ class InitPTP:
 
         self.DriveThread.stop()
         self.RunningPTP = False
+        if StopSmooth:
+            self.StopDrivingSmooth()
         print("\033[0m")
     
     def StopDrivingSmooth(self, Rate=0.99):
