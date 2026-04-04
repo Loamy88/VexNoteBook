@@ -1,7 +1,7 @@
 # Code Details and Versions
 
-- [Download Main Code](https://loamy88.github.io/VexNoteBook/code/180%20Flip.py) - ([View On Github](./180%20Flip.py))  
-- [Download Code for New Robot (only in testing)](https://loamy88.github.io/VexNoteBook/code/New%20180%20Flip%20-%20Not%20Used.py) - ([View On Github](./New%20180%20Flip%20-%20Not%20Used.py))
+- [Download Main Code as .py](https://loamy88.github.io/VexNoteBook/code/180%20Flip.py) - ([View On Github](./180%20Flip.py))  
+- [Download Code for New Robot as .py (only in testing)](https://loamy88.github.io/VexNoteBook/code/New%20180%20Flip%20-%20Not%20Used.py) - ([View On Github](./New%20180%20Flip%20-%20Not%20Used.py))
 - [Autonomous Code Page](./autonomous)
   
 ## Version 1.0.0 (March 6, 2026):  

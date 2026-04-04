@@ -1,6 +1,6 @@
 # Code Details and Versions
 
-- [Download Main Code](https://loamy88.github.io/VexNoteBook/code/autonomous/110%20Autonomous.py) - ([View On Github](./110%20Autonomous.py))
+- [Download Main Code as .py](https://loamy88.github.io/VexNoteBook/code/autonomous/110%20Autonomous.py) - ([View On Github](./110%20Autonomous.py))
   
   
 ## Version 1.0.0 (March 6, 2026):  
