@@ -64,8 +64,16 @@
     - This insures that each time it is pressed, the action only happens once
 
 2. Checking for Open Claws:
-    - The program uses `pneumatic.status()` to check if the claws are open
-    - It uses a bitwise `&` to see if the returned integer has the bits to signify an extended cylinder ex. `if pneumatic.status() & 768 == 768:`
+    - The program uses `Robot.Claws.status()` to check if the claws are open
+    - It uses a bitwise `&` to see if the returned integer has the bits to signify an extended cylinder:
+    ```python
+    if Robot.Claws.status() & 768 == 768:
+        # Cylinder 1 is open
+        Robot.Claws.retract(Robot.Pin)
+    else:
+        # Cylinder 1 is closed
+        Robot.Claws.extend(Robot.Pin)
+    ```
     - It will then open or close the claw
 
 ## Version 1.1.1 (March 30, 2026):
