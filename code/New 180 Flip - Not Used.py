@@ -87,7 +87,7 @@ class Init:
         self.Pin = CYLINDER2
         self.PinBinary = 3
         # CYLINDER1 = 768
-        self.ClawMode = "ONEBUTTONTOGGLE"
+        self.ClawMode = "TWOBUTTONOPENCLOSE"
         for motor in [self.BeamArm, self.PinArm]:
             motor.set_velocity(100, PERCENT)
         self.DriveMotors = self.InitDrive()
@@ -247,8 +247,6 @@ def Drive():
             Sides[1].spin(FORWARD)
         while "drive" in DoingSequence:
             wait(30, MSEC)
-        if Robot.Debug:
-            print("Left:", Robot.DriveMotors.Left.velocity(PERCENT), "  Right:", Robot.DriveMotors.Right.velocity(PERCENT))
 
 def ClawAlignerControl():
     FUpReady = True
