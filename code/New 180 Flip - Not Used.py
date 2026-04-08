@@ -1,6 +1,5 @@
 #region VEXcode Generated Robot Configuration
 from vex import *
-import urandom
 import math
 
 # Brain should be defined by default
@@ -10,7 +9,7 @@ brain=Brain()
 brain_inertial = Inertial()
 
 
-
+'''
 # generating and setting random seed
 def initializeRandomSeed():
     wait(100, MSEC)
@@ -22,6 +21,7 @@ def initializeRandomSeed():
     
 # Initialize random seed 
 initializeRandomSeed()
+'''
 
 #endregion VEXcode Generated Robot Configuration
 
