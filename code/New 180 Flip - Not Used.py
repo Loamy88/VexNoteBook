@@ -359,13 +359,13 @@ def ArmControl():
                 Robot.PinArm.spin(FORWARD)
             if Robot.Control.buttonLDown.pressing(): # Lower pin arm
                 Robot.PinArm.spin(REVERSE)
+                if 115 > Robot.PinArm.position(DEGREES) > 80:
+                    Robot.PASBeamClaw.extend(CYLINDER1)
+                elif Robot.PinArm.position(DEGREES) < 80:
+                    Robot.PASBeamClaw.retract(CYLINDER1)
                 if Flipping:
                     Flipping.stop()
                     Flipping = None
-            if Robot.PinArm.position(DEGREES) < 115:
-                Robot.PASBeamClaw.extend(CYLINDER1)
-            elif Robot.PinArm.position(DEGREES) > 130:
-                Robot.PASBeamClaw.retract(CYLINDER1)
             if Robot.PinArm.position(DEGREES) < 0:
                 Robot.PinArm.reset_position()
             elif Robot.PinArm.position(DEGREES) < 50:
