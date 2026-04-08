@@ -4,7 +4,7 @@
 - [Download New Code as .py](https://loamy88.github.io/VexNoteBook/code/autonomous/New%20Autonomous.py) - ([View On Github](./New%20Autonomous.py)) *Work In Progress*
   
   
-===
+---
 ## Version 1.0.0 (March 6, 2026):  
   
 - Initial setup on github  
