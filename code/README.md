@@ -83,3 +83,7 @@
 ## New Robot Version 0.2.0 (April 2, 2026):
 
 - Update ports for testing from main code for the new robot
+
+## Version 1.1.2 (April 7, 2026):
+
+- Make Shift L-Up and R-Up toggle their respective aligners

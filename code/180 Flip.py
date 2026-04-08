@@ -45,7 +45,7 @@ print(DEBUG, "Starting...")
 # Library imports
 from vex import *
 
-version = "1.1.1"
+version = "1.1.2"
 
 print(DEBUG, "180 Flip Code Version:", version)
 
@@ -400,6 +400,7 @@ def ActivatePinAligner(NoL3=False):
             Robot.PinAligner.down()
             ActivePinAligner = True
 
+'''
 def RunAutoFlip():
     global Flipping
     if Robot.PinArm.position(DEGREES) / 3 > 150:
@@ -462,6 +463,7 @@ def AutoLift():
             Lifting = None
         else:
             Lifting = Thread(RunAutoLift)
+'''
 
 def StopCheck():
     Pressing = False
@@ -500,8 +502,8 @@ def main():
         Robot.Control.buttonR3.pressed(SwitchModes)
         Robot.Control.buttonRDown.pressed(BeamAligner)
         Robot.Control.buttonLDown.pressed(ActivatePinAligner)
-        Robot.Control.buttonLUp.pressed(AutoFlip)
-        Robot.Control.buttonRUp.pressed(AutoLift)
+        Robot.Control.buttonLUp.pressed(ActivatePinAligner)
+        Robot.Control.buttonRUp.pressed(BeamAligner)
         StopThread = Thread(StopCheck)
         if sd.is_inserted():
             print(DEBUG, "SD Card Found, Tracking Movement")
