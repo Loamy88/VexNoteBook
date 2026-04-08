@@ -87,3 +87,8 @@
 ## Version 1.1.2 (April 7, 2026):
 
 - Make Shift L-Up and R-Up toggle their respective aligners
+
+## Version 0.2.1 (April 7, 2026):
+
+- Make Shift L-Up and R-Up toggle their respective aligners
+- Make PAS activate when the pin arm is lowered down

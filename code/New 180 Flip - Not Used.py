@@ -43,7 +43,7 @@ ERROR = "\033[31m[ERROR]\033[0m"
 print(DEBUG, "Starting...")
 # Library imports
 
-version = "0.2.0"
+version = "0.2.1"
 
 print(DEBUG, "New 180 Flip Code Version:", version)
 
@@ -77,7 +77,7 @@ class Init:
         self.Light2 = Touchled(Ports.PORT7)
         self.BeamArm = MotorGroup(Motor(Ports.PORT10), Motor(Ports.PORT1, True))
         self.BeamArm.set_stopping(HOLD)
-        self.PinClawAligner = Pneumatic(Ports.PORT9)
+        self.AlignerPinClaw = Pneumatic(Ports.PORT9)
         self.PinArm = MotorGroup(Motor(Ports.PORT11), Motor(Ports.PORT12, True))
         self.PinArm.set_stopping(HOLD)
         self.PinArm.set_position(0, DEGREES)
@@ -91,9 +91,9 @@ class Init:
         for motor in [self.BeamArm, self.PinArm]:
             motor.set_velocity(100, PERCENT)
         self.DriveMotors = self.InitDrive()
-        self.BeamClawPAS = Pneumatic(Ports.PORT5)
-        self.Aligner = self.InitAligner(self.PinClawAligner)
-        self.PinAligner = self.InitPAS(self.BeamClawPAS)
+        self.PASBeamClaw = Pneumatic(Ports.PORT5)
+        self.Aligner = self.InitAligner(self.AlignerPinClaw)
+        self.PinAligner = self.InitPAS(self.PASBeamClaw)
         self.Light.on()
         self.Light.set_color(Color.RED)
         self.Light2.on()
@@ -271,12 +271,12 @@ def ClawAlignerControl():
             if Robot.Control.buttonFDown.pressing(): # Beam claw toggle
                 if FDownReady:
                     if Robot.Debug:
-                        print(bin(Robot.BeamClawPAS.status()))
-                    if Robot.BeamClawPAS.status() & Robot.BeamBinary == Robot.BeamBinary:
+                        print(bin(Robot.PASBeamClaw.status()))
+                    if Robot.PASBeamClaw.status() & Robot.BeamBinary == Robot.BeamBinary:
                         # Check if claw is open with returned bits from pneumatic status
-                        Robot.BeamClawPAS.retract(Robot.Beam)
+                        Robot.PASBeamClaw.retract(Robot.Beam)
                     else:
-                        Robot.BeamClawPAS.extend(Robot.Beam)
+                        Robot.PASBeamClaw.extend(Robot.Beam)
                     FDownReady = False
             else:
                 FDownReady = True
@@ -292,11 +292,11 @@ def ClawAlignerControl():
                 
             if Robot.Control.buttonEDown.pressing(): # Pin claw toggle
                 if EDownReady:
-                    if Robot.PinClawAligner.status() & Robot.PinBinary == Robot.PinBinary:
+                    if Robot.AlignerPinClaw.status() & Robot.PinBinary == Robot.PinBinary:
                         # Check if claw is open with returned bits from pneumatic status
-                        Robot.PinClawAligner.retract(Robot.Pin)
+                        Robot.AlignerPinClaw.retract(Robot.Pin)
                     else:
-                        Robot.PinClawAligner.extend(Robot.Pin)
+                        Robot.AlignerPinClaw.extend(Robot.Pin)
                     EDownReady = False
             else:
                 EDownReady = True
@@ -316,13 +316,13 @@ def ClawAlignerControl():
 
             wait(8, MSEC)
             if Robot.Control.buttonFDown.pressing(): # Beam claw open
-                Robot.BeamClawPAS.retract(Robot.Beam)
+                Robot.PASBeamClaw.retract(Robot.Beam)
             if Robot.Control.buttonFUp.pressing(): # Beam claw close
-                Robot.BeamClawPAS.extend(Robot.Beam)
+                Robot.PASBeamClaw.extend(Robot.Beam)
             if Robot.Control.buttonEDown.pressing(): # Pin claw open
-                Robot.PinClawAligner.retract(Robot.Pin)
+                Robot.AlignerPinClaw.retract(Robot.Pin)
             if Robot.Control.buttonEUp.pressing(): # Pin claw close
-                Robot.PinClawAligner.extend(Robot.Pin)
+                Robot.AlignerPinClaw.extend(Robot.Pin)
 
 def ArmControl():
     global DoingSequence, Flipping, Lifting
@@ -342,10 +342,10 @@ def ArmControl():
                     Lifting = None
                     Robot.BeamArm.set_velocity(100, PERCENT)
                 Robot.BeamArm.spin(REVERSE)
-            if Robot.BeamArm.position(DEGREES) < 58:
+            if Robot.BeamArm.position(DEGREES) < 0:
+                Robot.BeamArm.reset_position()
+            elif Robot.BeamArm.position(DEGREES) < 58:
                 Robot.BeamArm.set_stopping(COAST)
-                if Robot.BeamArm.position(DEGREES) < 0:
-                    Robot.BeamArm.reset_position()
             else:
                 Robot.BeamArm.set_stopping(HOLD)
 
@@ -362,10 +362,14 @@ def ArmControl():
                 if Flipping:
                     Flipping.stop()
                     Flipping = None
-            if Robot.PinArm.position(DEGREES) < 50:
+            if Robot.PinArm.position(DEGREES) < 115:
+                Robot.PASBeamClaw.extend(CYLINDER1)
+            elif Robot.PinArm.position(DEGREES) > 130:
+                Robot.PASBeamClaw.retract(CYLINDER1)
+            if Robot.PinArm.position(DEGREES) < 0:
+                Robot.PinArm.reset_position()
+            elif Robot.PinArm.position(DEGREES) < 50:
                 Robot.PinArm.set_stopping(COAST)
-                if Robot.PinArm.position(DEGREES) < 0:
-                    Robot.PinArm.reset_position()
             else:
                 Robot.PinArm.set_stopping(HOLD)
 
@@ -403,6 +407,7 @@ def ActivatePAS(NoL3=False):
             Robot.PinAligner.down()
             ActivePinAligner = True
 
+'''
 def RunAutoFlip():
     global Flipping
     if Robot.PinArm.position(DEGREES) / 3 > 150:
@@ -465,6 +470,7 @@ def AutoLift():
             Lifting = None
         else:
             Lifting = Thread(RunAutoLift)
+'''
 
 def StopCheck():
     Pressing = False
@@ -503,8 +509,8 @@ def main():
         Robot.Control.buttonR3.pressed(SwitchModes)
         Robot.Control.buttonRDown.pressed(ActivateAligner)
         Robot.Control.buttonLDown.pressed(ActivatePAS)
-        Robot.Control.buttonLUp.pressed(AutoFlip)
-        Robot.Control.buttonRUp.pressed(AutoLift)
+        Robot.Control.buttonLUp.pressed(ActivatePAS)
+        Robot.Control.buttonRUp.pressed(ActivateAligner)
         StopThread = Thread(StopCheck)
         if sd.is_inserted():
             print(DEBUG, "SD Card Found, Tracking Movement")
