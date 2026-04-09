@@ -1,7 +1,7 @@
 # Code Details and Versions
 
-- [Download Main Code as .py](https://loamy88.github.io/VexNoteBook/code/180%20Flip.py) - ([View On Github](./180%20Flip.py))  
-- [Download Code for New Robot as .py (only in testing)](https://loamy88.github.io/VexNoteBook/code/New%20180%20Flip%20-%20Not%20Used.py) - ([View On Github](./New%20180%20Flip%20-%20Not%20Used.py))
+- Download Main Code as [.py](https://loamy88.github.io/VexNoteBook/code/180%20Flip.py) or [.iqpython](https://loamy88.github.io/VexNoteBook/code/180%20Flip.iqpython) - ([View On Github](./180%20Flip.py))  
+- Download Code for New Robot as [.py] (only in testing)](https://loamy88.github.io/VexNoteBook/code/New%20180%20Flip%20-%20Not%20Used.py) or [.iqpython](https://loamy88.github.io/VexNoteBook/code/180%20Flip%20-%20V.2.iqpython) - ([View On Github](./New%20180%20Flip%20-%20Not%20Used.py))
 - [Autonomous Code Page](./autonomous)
 
 ---
