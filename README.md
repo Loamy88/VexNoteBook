@@ -1,6 +1,6 @@
-# Github Repository for the United Robotics Notebook
-
-[Go to Code Page](/code/)
+# Github Repository for the United Robotics Notebook  
+  
+[Go to Code Page](/code/)  
 [Go to Autonomous Page](/code/autonomus/)  
   
 **This stores all the code updates**  
