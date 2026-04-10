@@ -21,6 +21,8 @@
     - Tracks the location and heading  
     - When trcaking location, sensors hitting a black line will adjust the position to be more accurate  
     - Calculates the angle and distance to travel to the next point  
+        - Checks to see if the angle is off enough with `abs(degrees_to_turn) > max(math.tan(self.Margin / math.sqrt((x_loc - self.x) ** 2 + (y_loc - self.y) ** 2)), 1.8)` to decide to turn or not
+        - A better *but messy* representation of this in desmos can be found [here](https://www.desmos.com/calculator/uxkigfllwh)
     - Uses PID to accurately drive set distances and to turn
 
 3. Driving Route:
