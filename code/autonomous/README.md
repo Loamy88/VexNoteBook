@@ -24,6 +24,7 @@
         - Checks to see if the angle is off enough with `abs(degrees_to_turn) > max(math.tan(self.Margin / math.sqrt((x_loc - self.x) ** 2 + (y_loc - self.y) ** 2)), 1.8)` to decide to turn or not
         - A better *but messy* representation of this in desmos can be found [here](https://www.desmos.com/calculator/uxkigfllwh)
     - Uses PID to accurately drive set distances and to turn
+    - In the future, we might add optical sensors to look for lines on the game field and use that to correct the position
 
 3. Driving Route:
     - We currently don't have the path set up
