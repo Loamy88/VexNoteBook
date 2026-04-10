@@ -87,7 +87,7 @@ class Init:
         self.BeamBinary = 768
         self.Pin = CYLINDER2
         self.PinBinary = 3
-        self.ClawMode = "ONEBUTTONTOGGLE"
+        self.ClawMode = "TWOBUTTONOPENCLOSE"
         for motor in [self.BeamArm, self.PinArm]:
             motor.set_velocity(100, PERCENT)
         self.DriveMotors = self.InitDrive()
