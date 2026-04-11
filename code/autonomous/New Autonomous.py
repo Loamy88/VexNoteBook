@@ -136,15 +136,15 @@ class Init:
         self.Claws.extend(CYLINDER2)
 
 
-    def InitPID(self, kP, kI, kD, WheelDiameter, GearRatio, Drive=(None, None)):
+    def InitPID(self, Kp, Ki, Kd, Drive=(None, None)):
         print(DEBUG, "Initializing PID Controller")
-        self.k = [kP, kI, kD]
+        self.K = [Kp, Ki, Kd]
         if Drive:
             self.DefaultLeft, self.DefaultRight = Drive
         DegreesPerWheelRotation = 360 / GearRatio
         self.DegreesPerInch = DegreesPerWheelRotation / (WheelDiameter * math.pi)
         print(DEBUG, "PID Initialized")
-    def PIDDrive(self, Direction, TargetDistance, StopID=None, k=None, RightMotor=None, LeftMotor=None, Unit=DEGREES, Reset=True, SpeedScale=1, Timeout=999000):
+    def PIDDrive(self, Direction, TargetPos, StopID=None, K=None, RightMotor=None, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
         global OverallScale, PIDStopper, PIDDriveScale
         if StopID:
             PIDStopper[StopID] = False
@@ -159,12 +159,11 @@ class Init:
         if Reset:
             LeftStart = LeftMotor.position(Unit)
             RightStart = RightMotor.position(Unit)
-        TargetPos = self.DegreesPerInch * TargetDistance
-        if not k:
-            k = self.k
-        kP = k[0]
-        kI = k[1]
-        kD = k[2]
+        if not K:
+            K = self.K
+        Kp = K[0]
+        Ki = K[1]
+        Kd = K[2]
         RightIntegral = 0
         LeftIntegral = 0
         RightLastError = 0
@@ -185,8 +184,8 @@ class Init:
             LeftLastError = LeftError
             Difference = LeftError - RightError
 
-            RightPower = (RightError * kP) + (RightDerivative * kD) + (RightIntegral * kI) + (Difference * kP / 2)
-            LeftPower = (LeftError * kP) + (LeftDerivative * kD) + (LeftIntegral * kI) - (Difference * kP / 4)
+            RightPower = (RightError * Kp) + (RightDerivative * Kd) + (RightIntegral * Ki) + (Difference * Kp / 2)
+            LeftPower = (LeftError * Kp) + (LeftDerivative * Kd) + (LeftIntegral * Ki) - (Difference * Kp / 4)
             RightMotor.set_velocity(Min(Clamp(RightPower * SpeedScale)), PERCENT)
             LeftMotor.set_velocity(Min(Clamp(LeftPower * SpeedScale)), PERCENT)
             RightMotor.spin(Direction)
@@ -212,51 +211,49 @@ class Init:
         LeftMotor.stop()
         del TimeoutTimer
         return
-    def PIDTurn(self, Direction, TargetPos, StopID=None, k=None, RightMotor=None, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000, Radians=False):
+    def PIDTurn(self, Direction, TargetPos, StopID=None, K=None, RightMotor=None, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
         global OverallScale, PIDStopper
         if StopID:
             PIDStopper[StopID] = False
         SpeedScale *= OverallScale
-        if Radians:
-            TargetPos *= 180 / math.pi
         TimeoutTimer = Timer()
         if self.Debug:
-            print("\033[32mTurn", Direction, TargetPos, "Degrees", end="  ")
+            print("\033[32mTurn", Direction, TargetPos, "Radians", end="  ")
         if not RightMotor:
             RightMotor = self.DefaultRight
         if not LeftMotor:
             LeftMotor = self.DefaultLeft
-        if not k:
-            k = self.k
+        if not K:
+            K = self.K
         if Direction == LEFT:
             Left = FORWARD
             Right = REVERSE
         elif Direction == RIGHT:
             Left = REVERSE
             Right = FORWARD
-        kP = k[0]
-        kI = k[1]
-        kD = k[2]
+        Kp = K[0]
+        Ki = K[1]
+        Kd = K[2]
         Integral = 0
         LastError = 0
         if Reset:
-            Start = brain_inertial.rotation()
+            Start = brain_inertial.rotation(TURNS) * 2 * math.pi
         while TimeoutTimer.time(MSEC) < Timeout:
-            Pos = (brain_inertial.rotation() - Start) * (-1 if Direction == LEFT else 1)
+            Pos = ((brain_inertial.rotation(TURNS) * 2 * math.pi) - Start) * (-1 if Direction == LEFT else 1)
             Error = TargetPos - Pos
             Integral += Error
-            Integral = Clamp(Integral, 300, -300)
+            Integral = Integral
             Derivative = Error - LastError
             LastError = Error
             print(TimeoutTimer.time(MSEC), "-", Error, end="  ")
 
-            Power = (Error * kP) + (Derivative * kD) + (Integral * kI)
-            RightMotor.set_velocity(Min(Clamp(Power * SpeedScale), Lim=10.5), PERCENT)
-            LeftMotor.set_velocity(Min(Clamp(Power * SpeedScale), Lim=10.5), PERCENT)
+            Power = (Error * Kp) + (Derivative * Kd) + (Integral * Ki)
+            RightMotor.set_velocity(Clamp(Power * SpeedScale), PERCENT)
+            LeftMotor.set_velocity(Clamp(Power * SpeedScale), PERCENT)
             RightMotor.spin(Right)
             LeftMotor.spin(Left)
 
-            if Error < 3:
+            if Error < 1:
                 RightMotor.stop()
                 LeftMotor.stop()
                 del TimeoutTimer
@@ -274,47 +271,23 @@ class Init:
         LeftMotor.stop()
         del TimeoutTimer
         return
-    def PIDSpinMotor(self, Motor_, Direction, Distance_, StopID=None, k=None, GearRatio=1, Unit=DEGREES, Reset=True, SpeedScale=1, Timeout=999000):
-        global OverallScale, PIDStopper
-        if StopID:
-            PIDStopper[StopID] = False
-        SpeedScale *= OverallScale
-        if self.Debug:
-            print("\033[32mSpin", Motor_, Direction, Distance_, "Degrees")
-        TimeoutTimer = Timer()
+    def SpinPinArm(self, Rotation, GearRatio=(1 / 3), Kp=3, Reset=True, Timeout=999000):
+        Motor_ = Robot.PinArm
+        TargetAngle = Rotation * GearRatio
+
         if Reset:
-            Start = Motor_.position(Unit)
-        if not k:
-            k = self.k
-        kP = k[0]
-        kI = k[1]
-        kD = k[2]
-        Integral = 0
-        LastError = 0
+            Motor_.reset_position()
+
+        TimeoutTimer = Timer()
+
         while TimeoutTimer.time(MSEC) < Timeout:
-            Pos = (Motor_.position(Unit) - Start) * GearRatio
-            Error = Distance_ - Pos
-            Integral += Error
-            Integral = Clamp(Integral, 300, -300)
-            Derivative = Error - LastError
-            LastError = Error
-
-            Power = (Error * kP) + (Derivative * kD) + (Integral * kI)
-            Motor_.set_velocity(Min(Clamp(Power * SpeedScale)), PERCENT)
-            Motor_.spin(Direction)
-
-            if Error < 5:
-                Motor_.stop()
-                del TimeoutTimer
-                return
-
-            if StopID:
-                if PIDStopper[StopID]:
-                    Motor_.stop()
-                    del TimeoutTimer
-                    return
-            wait(1, MSEC)
-
+            Pos = Motor_.position(DEGREES)
+            Error = TargetAngle - Pos
+            
+            Power = Error * Kp
+            Motor_.set_velocity(Clamp(Power), PERCENT)
+            Motor_.spin(FORWARD)
+            
         Motor_.stop()
         del TimeoutTimer
         return
@@ -349,16 +322,32 @@ class InitPTP:
         self.Tracking = False
         self.RunningPTP = False
 
+    def TrackLocationInterial(self):
+        self.Tracking = True
+
+        LastTime = brain.timer.time(MSEC)
+
+        while self.Tracking:
+            CurrentTime = brain.timer.time(MSEC)
+
+            # Find Acceleration
+            AccelX = brain_inertial.acceleration(XAXIS)
+            AccelY = brain_inertial.acceleration(YAXIS)
+
+            # Calculate the Change
+            DeltaX = 0
+            DeltaY = 0
+
     def TrackLocation(self, Sampling=False):
         self.Tracking = True
 
-        LastMotorPos = (Robot.DriveLeft.position(TURNS) + Robot.DriveRight.position(TURNS)) * math.pi * 2
+        LastMotorPos = (Robot.DriveLeft.position(TURNS) + Robot.DriveRight.position(TURNS)) * math.pi
 
         if Sampling:
             self.TrackingLoops = 0
 
         while self.Tracking:
-            CurrentMotorPos = (Robot.DriveLeft.position(TURNS) + Robot.DriveRight.position(TURNS)) * math.pi *2
+            CurrentMotorPos = (Robot.DriveLeft.position(TURNS) + Robot.DriveRight.position(TURNS)) * math.pi
 
             # Find Movement and Angle
             Change = self.RadiansToInches(CurrentMotorPos - LastMotorPos)
@@ -372,8 +361,8 @@ class InitPTP:
             self.x += ChangeX
             self.y += ChangeY
 
-            self.x = round(self.x, 4)
-            self.y = round(self.y, 4)
+            self.x = self.x, 4
+            self.y = self.y, 4
             
             # Reset LastMotorPos
             LastMotorPos = CurrentMotorPos
@@ -419,7 +408,7 @@ class InitPTP:
 
             degrees_to_turn = round(degrees_to_turn, 4)
             
-            if abs(degrees_to_turn) > math.tan(self.Margin / math.sqrt((x_loc - self.x) ** 2 + (y_loc - self.y) ** 2)):
+            if abs(degrees_to_turn) > math.tan(self.Margin / math.sqrt((x_loc - self.x) ** 2 + (y_loc - self.y) ** 2)) * 1.3:
                 # If the angle is off then stop driving forward and turn
                 if self.Debug:
                     print(self.x, self.y)
@@ -473,7 +462,7 @@ print("\n\033[34m---- Initilizing ----\n\033[0m")
 
 Robot = Init(Debug=True)
 Robot.InitPID(0.34, 0.002, 0.55, 2.5, 2.5, Drive=(Robot.DriveRight, Robot.DriveLeft))
-PTP = InitPTP(debug=True)
+#PTP = InitPTP(debug=True)
 
 print("\n\033[34m---- Initilization Complete ----\033[0m\n")
 
@@ -500,7 +489,7 @@ def Autonomous():
     Robot.StartButton.set_brightness(50)
     Robot.StartButton.set_blink(Color.GREEN, 0.75, 1.25)
     Robot.Start()
-    TrackingThread = Thread(PTP.TrackLocation)
+    #TrackingThread = Thread(PTP.TrackLocation)
     
 
     # ---------------------- Starting Autonomous Code ----------------------
@@ -513,7 +502,7 @@ def Autonomous():
 
     # -- Get First Pins --
 
-    PTP.ToPoint((5, 5))
+    Robot.PIDDrive(FORWARD, 10)
 
 
     # -- Get Second Pins --
