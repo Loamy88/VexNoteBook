@@ -6,6 +6,10 @@
 
 ---
 
+## Version 1.1.3 (April 11, 2026):
+
+- Make L3 activate any aligners that have their corresponding arms raised
+
 ## New Robot Version 0.2.1 (April 7, 2026):
 
 - Make Shift L-Up and R-Up toggle their respective aligners
