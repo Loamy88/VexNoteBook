@@ -43,8 +43,10 @@
     - The PID has lately had some accuracy issues
     - The turn and drive PID values are retuned to ensure no problems
     - Spinning not driving motors has turned out to not require the accuracy acheived by PID, so that functions has been replaced by a simple P controller
-    - Graph of the driving error: ![PID Drive Error](./graphs/PID_drive_error.png)
-    - Graph of theturning error: ![PID Turn Error](./graphs/PID_turn_error.png)
+    - Graph of the driving error: 
+    - ![PID Drive Error](./graphs/PID_drive_error.png)
+    - Graph of the turning error: 
+    - ![PID Turn Error](./graphs/PID_turn_error.png)
 
 ## Version 1.0.0 (March 6, 2026):  
   
