@@ -145,7 +145,7 @@ class Init:
         DegreesPerWheelRotation = 360 / 2.5
         self.DegreesPerInch = DegreesPerWheelRotation / (2.5 * math.pi)
         print(DEBUG, "PID Initialized")
-    def PIDDrive(self, Direction, TargetPos, K=None, RightMotor=None, StationaryWaitTime=45, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
+    def PIDDrive(self, Direction, TargetPos, K=None, RightMotor=None, StationaryWaitTime=120, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
         global OverallScale, PIDDriveScale
         SpeedScale *= OverallScale * PIDDriveScale
         TimeoutTimer = Timer()
@@ -193,10 +193,10 @@ class Init:
             RightLastError = RightError
             LeftLastError = LeftError
             # Stop going faster if error is increasing
-            if RightDerivative * TargetPos > 0:  # TargetPos accounts for going backwards (* -1)
-                RightDerivative = 0
-            if LeftDerivative * TargetPos > 0:  # TargetPos accounts for going backwards (* -1)
-                LeftDerivative = 0
+            if RightDerivative * TargetPos > 0.0:  # TargetPos accounts for going backwards (* -1)
+                RightDerivative = 0.0
+            if LeftDerivative * TargetPos > 0.0:  # TargetPos accounts for going backwards (* -1)
+                LeftDerivative = 0.0
 
             Difference = LeftError - RightError
 
@@ -208,7 +208,7 @@ class Init:
             RightMotor.spin(FORWARD)
             LeftMotor.spin(FORWARD)
 
-            if abs(RightError) < 0.065 and abs(LeftError) < 0.065:
+            if abs(RightError) < 0.1 and abs(LeftError) < 0.1:
                 IsStationary = True
                 if CurrentTime - StationaryTime > StationaryWaitTime:
                     RightMotor.stop()
@@ -217,6 +217,10 @@ class Init:
                     return
             else:
                 StationaryTime = CurrentTime
+                if IsStationary:
+                    IsStationary = False
+                    RightIntegral = 0.0
+                    LeftIntegral = 0.0
 
             wait(1, MSEC)
 
@@ -226,10 +230,12 @@ class Init:
         LeftMotor.stop()
         del TimeoutTimer
         return
-    def PIDTurn(self, Direction, TargetPos, K=None, RightMotor=None, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
+    def PIDTurn(self, Direction, TargetPos, K=None, RightMotor=None, LeftMotor=None, StationaryWaitTime=120, Reset=True, SpeedScale=1, Timeout=999000):
         global OverallScale
         SpeedScale *= OverallScale
         TimeoutTimer = Timer()
+        StationaryTime = TimeoutTimer.time(MSEC)
+        IsStationary = False
         if self.Debug:
             print("\033[32mTurn", Direction, TargetPos, "Radians", end="  ")
         if not RightMotor:
@@ -251,28 +257,46 @@ class Init:
         LastError = 0
         if Reset:
             Start = brain_inertial.rotation(TURNS) * 2 * math.pi
+        CurrentTime = TimeoutTimer.time(MSEC)
         while TimeoutTimer.time(MSEC) < Timeout:
+            # Calculate error
             Pos = ((brain_inertial.rotation(TURNS) * 2 * math.pi) - Start) * (-1 if Direction == LEFT else 1)
             Error = TargetPos - Pos
+
+            # Track accumulated error
             Integral += Error
-            Integral = Integral
+            Integral = Clamp(Integral, 300, -300)
+
+            # Calculate derivative
             Derivative = Error - LastError
             LastError = Error
-            print(TimeoutTimer.time(MSEC), "-", Error, end="  ")
+            # Stop going faster if error is increasing
+            if Derivative * TargetPos > 0.0:  # TargetPos accounts for going backwards (* -1)
+                Derivative = 0.0
 
+            # Calculate and apply power
             Power = (Error * Kp) + (Derivative * Kd) + (Integral * Ki)
             RightMotor.set_velocity(Clamp(Power * SpeedScale * RightDir), PERCENT)
             LeftMotor.set_velocity(Clamp(Power * SpeedScale * LeftDir), PERCENT)
             RightMotor.spin(FORWARD)
             LeftMotor.spin(FORWARD)
 
-            if Error < 1:
-                RightMotor.stop()
-                LeftMotor.stop()
-                del TimeoutTimer
-                return
+            if Error < 0.08:
+                IsStationary = True
+                if CurrentTime - StationaryTime > StationaryWaitTime:
+                    RightMotor.stop()
+                    LeftMotor.stop()
+                    del TimeoutTimer
+                    return
+            else:
+                StationaryTime = CurrentTime
+                if IsStationary:
+                    IsStationary = False
+                    Integral = 0.0
 
             wait(1, MSEC)
+
+            CurrentTime = TimeoutTimer.time(MSEC)
 
         RightMotor.stop()
         LeftMotor.stop()
@@ -470,7 +494,7 @@ def Min(Num, Lim=7.5):
 print("\n\033[34m---- Initilizing ----\n\033[0m")
 
 Robot = Init(Debug=True)
-Robot.InitPID((4.8, 0.01, 0.0), (0.34, 0.002, 0.55), Drive=(Robot.DriveRight, Robot.DriveLeft))
+Robot.InitPID((12.85, 0.08, 54.3), (27.0, 0.0155, 114.5), Drive=(Robot.DriveRight, Robot.DriveLeft))
 Odom = InitOdometry(debug=True)
 
 print("\n\033[34m---- Initilization Complete ----\033[0m\n")
@@ -478,16 +502,21 @@ print("\n\033[34m---- Initilization Complete ----\033[0m\n")
 
 
 
+def Colors():
+    cols = [Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN, Color.BLUE, Color.PURPLE]
+    col = 0
+    while True:
+        col = (col + 1) % len(cols)
+        Robot.StartButton.set_color(cols[col])
+        wait(400, MSEC)
 
 def Autonomous():
     global OverallScale, PIDStopper
     CreateThread = Event()
-    cols = [Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN, Color.BLUE, Color.PURPLE]
-    col = 0
+    ChangingColors = Thread(Colors)
     while not Robot.StartButton.pressing():
-        col = (col + 1) % len(cols)
-        Robot.StartButton.set_color(cols[col])
-        wait(400, MSEC)
+        wait(40, MSEC)
+    ChangingColors.stop()
     Robot.StartButton.set_fade(FadeType.OFF)
     Robot.StartButton.on(Color.RED)
     brain_inertial.set_heading(0, DEGREES)
@@ -511,7 +540,7 @@ def Autonomous():
 
     # -- Get First Pins --
 
-    Robot.PIDDrive(FORWARD, 3.52)
+    Robot.PIDTurn(RIGHT, math.pi / 2)
 
 
     # -- Get Second Pins --
