@@ -144,10 +144,8 @@ class Init:
         DegreesPerWheelRotation = 360 / GearRatio
         self.DegreesPerInch = DegreesPerWheelRotation / (WheelDiameter * math.pi)
         print(DEBUG, "PID Initialized")
-    def PIDDrive(self, Direction, TargetPos, StopID=None, K=None, RightMotor=None, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
-        global OverallScale, PIDStopper, PIDDriveScale
-        if StopID:
-            PIDStopper[StopID] = False
+    def PIDDrive(self, Direction, TargetPos, K=None, RightMotor=None, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
+        global OverallScale, PIDDriveScale
         SpeedScale *= OverallScale * PIDDriveScale
         TimeoutTimer = Timer()
         if self.Debug:
@@ -199,22 +197,14 @@ class Init:
                 del TimeoutTimer
                 return
 
-            if StopID:
-                if PIDStopper[StopID]:
-                    RightMotor.stop()
-                    LeftMotor.stop()
-                    del TimeoutTimer
-                    return
             wait(1, MSEC)
 
         RightMotor.stop()
         LeftMotor.stop()
         del TimeoutTimer
         return
-    def PIDTurn(self, Direction, TargetPos, StopID=None, K=None, RightMotor=None, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
-        global OverallScale, PIDStopper
-        if StopID:
-            PIDStopper[StopID] = False
+    def PIDTurn(self, Direction, TargetPos, K=None, RightMotor=None, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
+        global OverallScale
         SpeedScale *= OverallScale
         TimeoutTimer = Timer()
         if self.Debug:
@@ -259,12 +249,6 @@ class Init:
                 del TimeoutTimer
                 return
 
-            if StopID:
-                if PIDStopper[StopID]:
-                    RightMotor.stop()
-                    LeftMotor.stop()
-                    del TimeoutTimer
-                    return
             wait(1, MSEC)
 
         RightMotor.stop()
@@ -293,12 +277,12 @@ class Init:
         return
 
 
-class InitPTP:
+class InitOdometry:
     def __init__(self, x=None, y=None, Units=INCHES, DoReset=True, InitialPos=(0, 0), debug=False, MarginOfError=0.5):
         self.Units = Units
         self.InitialPos = InitialPos
         self.Margin = MarginOfError
-        self.RunningPTP = False
+        self.RunningOdom = False
         self.Debug = debug
         self.x, self.y = 0.0, 0.0
         if DoReset:
@@ -307,12 +291,6 @@ class InitPTP:
             self.x = float(x)
         if y:
             self.y = float(y)
-        if self.Debug:
-            TrackingThread = Thread(self.TrackLocation, (True,))
-            wait(100, MSEC)
-            self.Tracking = False
-            if self.Debug:
-                print(DEBUG, "Tracking Loops Per Second: ", self.TrackingLoops * 10)
         
     def RadiansToInches(self, rad):
         degrees = rad * (180 / math.pi)
@@ -320,25 +298,64 @@ class InitPTP:
 
     def close(self):
         self.Tracking = False
-        self.RunningPTP = False
+        self.RunningOdom = False
+        self.ShowingData = False
+
+    def ShowData(self):
+        self.ShowingData = True
+
+        while self.ShowingData:
+            Heading   = "Heading:    " + str(brain_inertial.heading(DEGREES))
+            Rotation  = "Rotation:   " + str(brain_intertial.rotation(DEGREES))
+            PositionX = "X Position: " + str(self.x)
+            PositionY = "Y Position: " + str(self.y)
+            Data = (Heading, Rotation, PositionX, PositionY)
+
+            brain.screen.set_font(FontType.MONO12)
+
+            brain.screen.clear_screen()
+
+            for Value in Data:
+                brain.screen.print(Value)
+                brain.screen.next_row()
+
+            brain.screen.render()
+
+            wait(10, MSEC)
+
 
     def TrackLocationInterial(self):
+        """Tracks the movement of the brains inertial sensor in g-seconds"""
         self.Tracking = True
 
-        LastTime = brain.timer.time(MSEC)
+        TrackingTimer = Timer()
 
         while self.Tracking:
-            CurrentTime = brain.timer.time(MSEC)
+            DeltaTime = TrackingTimer.time(MSEC)
+            TrackingTimer.clear()
 
-            # Find Acceleration
+            # Find acceleration
             AccelX = brain_inertial.acceleration(XAXIS)
             AccelY = brain_inertial.acceleration(YAXIS)
 
-            # Calculate the Change
-            DeltaX = 0
-            DeltaY = 0
+            # Calculate the local change in g-seconds
+            DeltaLocalForward = (-AccelY * DeltaTime) / 1000
+            DeltaLocalRight = (AccelX * DeltaTime) / 1000
+
+            CurrentAngle = brain_inertial.heading(TURNS) * math.pi * 2
+            CurrentAngleRight = CurrentAngle + (math.pi / 2)
+
+            DeltaX = (math.cos(CurrentAngle) * DeltaLocalForward) + (math.cos(CurrentAngleRight) * DeltaLocalRight)
+            DeltaY = (math.sin(CurrentAngle) * DeltaLocalForward) + (math.sin(CurrentAngleRight) * DeltaLocalRight)
+
+            self.x += DeltaX
+            self.y += DeltaY
+
+
+
 
     def TrackLocation(self, Sampling=False):
+        """Tracks the movement of the wheels in radians of motor rotation"""
         self.Tracking = True
 
         LastMotorPos = (Robot.DriveLeft.position(TURNS) + Robot.DriveRight.position(TURNS)) * math.pi
@@ -379,16 +396,16 @@ class InitPTP:
     def ToPoint(self, Point, Direction=FORWARD, StopSmooth=True, SpeedScale=1, TurnScale=1, DriveScale=1, DriveTimeout=999000):
         global PIDDriveScale
         PIDDriveScale = SpeedScale * DriveScale
-        x_loc, y_loc = Point
+        TargetX, TargetY = Point
         if self.Debug:
-            print("\033[0m - Driving from (", round(self.x, 2), ", ", round(self.y, 2), ") to (", x_loc, ", ", y_loc, ") -", sep="") # Driving from (x, y) to (x, y)
+            print("\033[0m - Driving from (", round(self.x, 2), ", ", round(self.y, 2), ") to (", TargetX, ", ", TargetY, ") -", sep="") # Driving from (x, y) to (x, y)
     
         IsDriving = False
-        self.RunningPTP = True
+        self.RunningOdom = True
         self.DriveThread = None
         LastTurn = Robot.GetTime()
-        while self.RunningPTP:
-            angle_to_turn_to = round(math.atan2(y_loc - self.y, x_loc - self.x), 4)
+        while self.RunningOdom:
+            angle_to_turn_to = round(math.atan2(TargetY - self.y, TargetX - self.x), 4)
             current_angle = round(brain_inertial.heading(TURNS) * math.pi * 2, 4)
             if Direction == REVERSE:
                 angle_to_turn_to += math.pi
@@ -408,7 +425,7 @@ class InitPTP:
 
             degrees_to_turn = round(degrees_to_turn, 4)
             
-            if abs(degrees_to_turn) > math.tan(self.Margin / math.sqrt((x_loc - self.x) ** 2 + (y_loc - self.y) ** 2)) * 1.3:
+            if abs(degrees_to_turn) > math.tan(self.Margin / math.sqrt((TargetX - self.x) ** 2 + (TargetY - self.y) ** 2)) * 1.3:
                 # If the angle is off then stop driving forward and turn
                 if self.Debug:
                     print(self.x, self.y)
@@ -424,17 +441,17 @@ class InitPTP:
 
             if not IsDriving:
                 # Drive if the robot isn't already doing so
-                Distance = round(math.sqrt((x_loc - self.x) ** 2 + (y_loc - self.y) ** 2), 4)
+                Distance = round(math.sqrt((TargetX - self.x) ** 2 + (TargetY - self.y) ** 2), 4)
 
                 self.DriveThread = Thread(Robot.PIDDrive, (Direction, Distance))
                 IsDriving = True
 
-                # Check for stopping the PTP
-                if math.sqrt((x_loc - self.x) ** 2 + (y_loc - self.y) ** 2) < (self.Margin * 0.95):
-                    self.RunningPTP = False
+                # Check for stopping the Odom
+                if math.sqrt((TargetX - self.x) ** 2 + (TargetY - self.y) ** 2) < (self.Margin * 0.95):
+                    self.RunningOdom = False
 
         self.DriveThread.stop()
-        self.RunningPTP = False
+        self.RunningOdom = False
         if StopSmooth:
             self.StopDrivingSmooth()
         print("\033[0m")
@@ -462,7 +479,7 @@ print("\n\033[34m---- Initilizing ----\n\033[0m")
 
 Robot = Init(Debug=True)
 Robot.InitPID(0.34, 0.002, 0.55, 2.5, 2.5, Drive=(Robot.DriveRight, Robot.DriveLeft))
-#PTP = InitPTP(debug=True)
+Odom = InitOdometry(debug=True)
 
 print("\n\033[34m---- Initilization Complete ----\033[0m\n")
 
@@ -473,7 +490,7 @@ print("\n\033[34m---- Initilization Complete ----\033[0m\n")
 def Autonomous():
     global OverallScale, PIDStopper
     CreateThread = Event()
-    cols = [Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN, Color.BLUE, Color.PURPLE]
+    cols = [Color.RED, Color.ORANGE, Color.ELLOW, Color.GREEN, Color.BLUE, Color.PURPLE]
     col = 0
     while not Robot.StartButton.pressing():
         col = (col + 1) % len(cols)
@@ -482,14 +499,14 @@ def Autonomous():
     Robot.StartButton.set_fade(FadeType.OFF)
     Robot.StartButton.on(Color.RED)
     brain_inertial.set_heading(0, DEGREES)
-    PTP.Reset()
+    Odom.Reset()
     print(DEBUG, "Autonomous Ready, Waiting to Start...")
     while Robot.StartButton.pressing():
         pass
     Robot.StartButton.set_brightness(50)
     Robot.StartButton.set_blink(Color.GREEN, 0.75, 1.25)
     Robot.Start()
-    #TrackingThread = Thread(PTP.TrackLocation)
+    TrackingThread = Thread(Odom.TrackLocationInterial)
     
 
     # ---------------------- Starting Autonomous Code ----------------------
@@ -502,7 +519,7 @@ def Autonomous():
 
     # -- Get First Pins --
 
-    Robot.PIDDrive(FORWARD, 10)
+    Odom.ShowData()
 
 
     # -- Get Second Pins --

@@ -9,7 +9,7 @@
 
 ## Version 2.0.0 (April XX, 2026) - WORK IN PROGRESS (Listed Goals):  
 
-- New autonomous system: Point-To-Point (PTP)  
+- New autonomous system: Odometry 
 
 ### Main Features:  
 
@@ -17,9 +17,9 @@
     - This new system might allow for a longer route  
     - When developing the the route, we might extend it beyond simply 110 points  
 
-2. Point-To-Point (PTP) Autonomous System:  
-    - Tracks the location and heading  
-    - When trcaking location, sensors hitting a black line will adjust the position to be more accurate  
+2. Odometry Autonomous System:  
+    - Tracks the location and heading using inertial 
+    - When tracking location, sensors hitting a black line will adjust the position to be more accurate  
     - Calculates the angle and distance to travel to the next point  
         - Checks to see if the angle is off enough with `abs(degrees_to_turn) > max(math.tan(self.Margin / math.sqrt((x_loc - self.x) ** 2 + (y_loc - self.y) ** 2)), 1.8)` to decide to turn or not
         - A better *but messy* representation of this in desmos can be found [here](https://www.desmos.com/calculator/uxkigfllwh)
