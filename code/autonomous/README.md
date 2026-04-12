@@ -39,6 +39,11 @@
     - Recently, the autonomous code has been getting large (~20KB with memory intensive code) and we have been getting memory allocation errors on program startup
     - Reducing the excessive use of some functions and classes has helped to lower memory usage
 
+5. PID:
+    - The PID has lately had some accuracy issues
+    - The turn and drive PID values are returned to ensure no problems
+    - Spinning not driving motors has turned out to not require the accuracy acheived by PID, so that functions has been replaced by a simple P controller
+
 ## Version 1.0.0 (March 6, 2026):  
   
 - Initial setup on github  
