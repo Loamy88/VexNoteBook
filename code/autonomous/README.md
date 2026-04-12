@@ -30,9 +30,9 @@
     - We currently don't have the path set up
     - The new system uses function calls like this:
     ```python
-    TrackingThread = Thread(PTP.TrackLocation)
+    TrackingThread = Thread(Odom.TrackLocation)
     # Driving to Pin
-    PTP.ToPoint((1, 8.5), SpeedScale=1.5)
+    Odom.ToPoint((1, 8.5), SpeedScale=1.5)
     ```
 
 4. Optimization:
