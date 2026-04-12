@@ -69,7 +69,7 @@ class Init:
         self.Control = Controller()
         self.BeamArm = MotorGroup(Motor(Ports.PORT7), Motor(Ports.PORT1, True))
         self.Claws = Pneumatic(Ports.PORT11)
-        self.Claws.pump_on()
+        self.Claws.pump_off()
         self.Claws.retract(CYLINDER1)
         self.Claws.retract(CYLINDER2)
         self.PinArm = MotorGroup(Motor(Ports.PORT10), Motor(Ports.PORT4, True))
@@ -136,27 +136,30 @@ class Init:
         self.Claws.extend(CYLINDER2)
 
 
-    def InitPID(self, Kp, Ki, Kd, Drive=(None, None)):
+    def InitPID(self, K, KTurn, Drive=(None, None)):
         print(DEBUG, "Initializing PID Controller")
-        self.K = [Kp, Ki, Kd]
+        self.K = K
+        self.KTurn = KTurn
         if Drive:
             self.DefaultLeft, self.DefaultRight = Drive
-        DegreesPerWheelRotation = 360 / GearRatio
-        self.DegreesPerInch = DegreesPerWheelRotation / (WheelDiameter * math.pi)
+        DegreesPerWheelRotation = 360 / 2.5
+        self.DegreesPerInch = DegreesPerWheelRotation / (2.5 * math.pi)
         print(DEBUG, "PID Initialized")
-    def PIDDrive(self, Direction, TargetPos, K=None, RightMotor=None, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
+    def PIDDrive(self, Direction, TargetPos, K=None, RightMotor=None, StationaryWaitTime=45, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
         global OverallScale, PIDDriveScale
         SpeedScale *= OverallScale * PIDDriveScale
         TimeoutTimer = Timer()
+        StationaryTime = TimeoutTimer.time(MSEC)
+        IsStationary = True
         if self.Debug:
-            print("\033[32mDrive", Direction, TargetDistance, "inches")
+            print("\033[32mDrive", Direction, TargetPos, "radians?")
         if not RightMotor:
             RightMotor = self.DefaultRight
         if not LeftMotor:
             LeftMotor = self.DefaultLeft
         if Reset:
-            LeftStart = LeftMotor.position(Unit)
-            RightStart = RightMotor.position(Unit)
+            LeftStart = LeftMotor.position(TURNS) * math.pi * 2
+            RightStart = RightMotor.position(TURNS) * math.pi * 2
         if not K:
             K = self.K
         Kp = K[0]
@@ -166,38 +169,58 @@ class Init:
         LeftIntegral = 0
         RightLastError = 0
         LeftLastError = 0
-        #f = open("logs.txt", "w")
-        while TimeoutTimer.time(MSEC) < Timeout:
-            RightPos = (RightMotor.position(Unit) - RightStart) * (-1 if Direction == REVERSE else 1)
-            LeftPos = (LeftMotor.position(Unit) - LeftStart) * (-1 if Direction == REVERSE else 1)
+        if Direction == REVERSE:
+            TargetPos *= -1
+        
+        CurrentTime = TimeoutTimer.time(MSEC)
+
+        while CurrentTime < Timeout:
+            # Calculate error
+            RightPos = (RightMotor.position(TURNS) * math.pi * 2) - RightStart
+            LeftPos = (LeftMotor.position(TURNS) * math.pi * 2) - LeftStart
             RightError = TargetPos - RightPos
             LeftError = TargetPos - LeftPos
+
+            # Track accumulated error
             RightIntegral += RightError
             LeftIntegral += LeftError
             RightIntegral = Clamp(RightIntegral, 300, -300)
             LeftIntegral = Clamp(LeftIntegral, 300, -300)
+
+            # Calculate derivative
             RightDerivative = RightError - RightLastError
             LeftDerivative = LeftError - LeftLastError
             RightLastError = RightError
             LeftLastError = LeftError
+            # Stop going faster if error is increasing
+            if RightDerivative * TargetPos > 0:  # TargetPos accounts for going backwards (* -1)
+                RightDerivative = 0
+            if LeftDerivative * TargetPos > 0:  # TargetPos accounts for going backwards (* -1)
+                LeftDerivative = 0
+
             Difference = LeftError - RightError
 
-            RightPower = (RightError * Kp) + (RightDerivative * Kd) + (RightIntegral * Ki) + (Difference * Kp / 2)
-            LeftPower = (LeftError * Kp) + (LeftDerivative * Kd) + (LeftIntegral * Ki) - (Difference * Kp / 4)
+            # Calculate power and move the robot
+            RightPower = (RightError * Kp) + (RightIntegral * Ki) + (RightDerivative * Kd) + (Difference * Kp / 2)
+            LeftPower = (LeftError * Kp) + (LeftIntegral * Ki) + (LeftDerivative * Kd) - (Difference * Kp / 2)
             RightMotor.set_velocity(Min(Clamp(RightPower * SpeedScale)), PERCENT)
             LeftMotor.set_velocity(Min(Clamp(LeftPower * SpeedScale)), PERCENT)
-            RightMotor.spin(Direction)
-            LeftMotor.spin(Direction)
-            #f.write("r: " + str(RightError) + str(RightPower) + "l: " + str(LeftError) + str(LeftPower) + "\n")
+            RightMotor.spin(FORWARD)
+            LeftMotor.spin(FORWARD)
 
-            if RightError < 3 and LeftError < 3:
-                RightMotor.stop()
-                LeftMotor.stop()
-                #f.write("Done\n")
-                del TimeoutTimer
-                return
+            if abs(RightError) < 0.065 and abs(LeftError) < 0.065:
+                IsStationary = True
+                if CurrentTime - StationaryTime > StationaryWaitTime:
+                    RightMotor.stop()
+                    LeftMotor.stop()
+                    del TimeoutTimer
+                    return
+            else:
+                StationaryTime = CurrentTime
 
             wait(1, MSEC)
+
+            CurrentTime = TimeoutTimer.time(MSEC)
 
         RightMotor.stop()
         LeftMotor.stop()
@@ -214,13 +237,13 @@ class Init:
         if not LeftMotor:
             LeftMotor = self.DefaultLeft
         if not K:
-            K = self.K
+            K = self.KTurn
         if Direction == LEFT:
-            Left = FORWARD
-            Right = REVERSE
+            LeftDir = 1
+            RightDir = -1
         elif Direction == RIGHT:
-            Left = REVERSE
-            Right = FORWARD
+            LeftDir = -1
+            RightDir = 1
         Kp = K[0]
         Ki = K[1]
         Kd = K[2]
@@ -238,10 +261,10 @@ class Init:
             print(TimeoutTimer.time(MSEC), "-", Error, end="  ")
 
             Power = (Error * Kp) + (Derivative * Kd) + (Integral * Ki)
-            RightMotor.set_velocity(Clamp(Power * SpeedScale), PERCENT)
-            LeftMotor.set_velocity(Clamp(Power * SpeedScale), PERCENT)
-            RightMotor.spin(Right)
-            LeftMotor.spin(Left)
+            RightMotor.set_velocity(Clamp(Power * SpeedScale * RightDir), PERCENT)
+            LeftMotor.set_velocity(Clamp(Power * SpeedScale * LeftDir), PERCENT)
+            RightMotor.spin(FORWARD)
+            LeftMotor.spin(FORWARD)
 
             if Error < 1:
                 RightMotor.stop()
@@ -278,8 +301,7 @@ class Init:
 
 
 class InitOdometry:
-    def __init__(self, x=None, y=None, Units=INCHES, DoReset=True, InitialPos=(0, 0), debug=False, MarginOfError=0.5):
-        self.Units = Units
+    def __init__(self, x=None, y=None, DoReset=True, InitialPos=(0, 0), debug=False, MarginOfError=0.5):
         self.InitialPos = InitialPos
         self.Margin = MarginOfError
         self.RunningOdom = False
@@ -292,21 +314,18 @@ class InitOdometry:
         if y:
             self.y = float(y)
         
-    def RadiansToInches(self, rad):
-        degrees = rad * (180 / math.pi)
-        return degrees / Robot.DegreesPerInch
-
     def close(self):
         self.Tracking = False
         self.RunningOdom = False
         self.ShowingData = False
 
-    def ShowData(self):
+    def ShowData(self, Timeout=999000):
         self.ShowingData = True
+        StartTime = brain.timer.time(MSEC)
 
-        while self.ShowingData:
+        while self.ShowingData and brain.timer.time(MSEC) - StartTime > Timeout:
             Heading   = "Heading:    " + str(brain_inertial.heading(DEGREES))
-            Rotation  = "Rotation:   " + str(brain_intertial.rotation(DEGREES))
+            Rotation  = "Rotation:   " + str(brain_inertial.rotation(DEGREES))
             PositionX = "X Position: " + str(self.x)
             PositionY = "Y Position: " + str(self.y)
             Data = (Heading, Rotation, PositionX, PositionY)
@@ -314,6 +333,7 @@ class InitOdometry:
             brain.screen.set_font(FontType.MONO12)
 
             brain.screen.clear_screen()
+            brain.screen.set_cursor(1, 1)
 
             for Value in Data:
                 brain.screen.print(Value)
@@ -322,36 +342,8 @@ class InitOdometry:
             brain.screen.render()
 
             wait(10, MSEC)
-
-
-    def TrackLocationInterial(self):
-        """Tracks the movement of the brains inertial sensor in g-seconds"""
-        self.Tracking = True
-
-        TrackingTimer = Timer()
-
-        while self.Tracking:
-            DeltaTime = TrackingTimer.time(MSEC)
-            TrackingTimer.clear()
-
-            # Find acceleration
-            AccelX = brain_inertial.acceleration(XAXIS)
-            AccelY = brain_inertial.acceleration(YAXIS)
-
-            # Calculate the local change in g-seconds
-            DeltaLocalForward = (-AccelY * DeltaTime) / 1000
-            DeltaLocalRight = (AccelX * DeltaTime) / 1000
-
-            CurrentAngle = brain_inertial.heading(TURNS) * math.pi * 2
-            CurrentAngleRight = CurrentAngle + (math.pi / 2)
-
-            DeltaX = (math.cos(CurrentAngle) * DeltaLocalForward) + (math.cos(CurrentAngleRight) * DeltaLocalRight)
-            DeltaY = (math.sin(CurrentAngle) * DeltaLocalForward) + (math.sin(CurrentAngleRight) * DeltaLocalRight)
-
-            self.x += DeltaX
-            self.y += DeltaY
-
-
+        
+        self.ShowingData = False
 
 
     def TrackLocation(self, Sampling=False):
@@ -367,7 +359,7 @@ class InitOdometry:
             CurrentMotorPos = (Robot.DriveLeft.position(TURNS) + Robot.DriveRight.position(TURNS)) * math.pi
 
             # Find Movement and Angle
-            Change = self.RadiansToInches(CurrentMotorPos - LastMotorPos)
+            Change = CurrentMotorPos - LastMotorPos
             CurrentAngle = brain_inertial.heading(TURNS) * math.pi * 2
 
             # Calculate the Change in x and y
@@ -378,8 +370,8 @@ class InitOdometry:
             self.x += ChangeX
             self.y += ChangeY
 
-            self.x = self.x, 4
-            self.y = self.y, 4
+            self.x = self.x
+            self.y = self.y
             
             # Reset LastMotorPos
             LastMotorPos = CurrentMotorPos
@@ -435,7 +427,7 @@ class InitOdometry:
                 IsDriving = False
                 self.StopDrivingSmooth()
                 wait(90, MSEC)
-                Robot.PIDTurn(turn_direction, degrees_to_turn, SpeedScale=(SpeedScale * TurnScale * 1.7), Radians=True)
+                Robot.PIDTurn(turn_direction, degrees_to_turn, SpeedScale=(SpeedScale * TurnScale * 1.7))
                 LastTurn = Robot.GetTime()
                 wait(90, MSEC)
 
@@ -478,7 +470,7 @@ def Min(Num, Lim=7.5):
 print("\n\033[34m---- Initilizing ----\n\033[0m")
 
 Robot = Init(Debug=True)
-Robot.InitPID(0.34, 0.002, 0.55, 2.5, 2.5, Drive=(Robot.DriveRight, Robot.DriveLeft))
+Robot.InitPID((4.8, 0.01, 0.0), (0.34, 0.002, 0.55), Drive=(Robot.DriveRight, Robot.DriveLeft))
 Odom = InitOdometry(debug=True)
 
 print("\n\033[34m---- Initilization Complete ----\033[0m\n")
@@ -490,7 +482,7 @@ print("\n\033[34m---- Initilization Complete ----\033[0m\n")
 def Autonomous():
     global OverallScale, PIDStopper
     CreateThread = Event()
-    cols = [Color.RED, Color.ORANGE, Color.ELLOW, Color.GREEN, Color.BLUE, Color.PURPLE]
+    cols = [Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN, Color.BLUE, Color.PURPLE]
     col = 0
     while not Robot.StartButton.pressing():
         col = (col + 1) % len(cols)
@@ -506,7 +498,7 @@ def Autonomous():
     Robot.StartButton.set_brightness(50)
     Robot.StartButton.set_blink(Color.GREEN, 0.75, 1.25)
     Robot.Start()
-    TrackingThread = Thread(Odom.TrackLocationInterial)
+    TrackingThread = Thread(Odom.TrackLocation)
     
 
     # ---------------------- Starting Autonomous Code ----------------------
@@ -519,7 +511,7 @@ def Autonomous():
 
     # -- Get First Pins --
 
-    Odom.ShowData()
+    Robot.PIDDrive(FORWARD, 3.52)
 
 
     # -- Get Second Pins --
@@ -552,7 +544,7 @@ def Autonomous():
     # Placeholder
 
 
-    return
+    return brain.program_stop()
 
 
 
