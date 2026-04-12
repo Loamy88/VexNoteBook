@@ -45,7 +45,7 @@ print(DEBUG, "Starting...")
 # Library imports
 from vex import *
 
-version = "1.1.2"
+version = "1.1.3"
 
 print(DEBUG, "180 Flip Code Version:", version)
 
