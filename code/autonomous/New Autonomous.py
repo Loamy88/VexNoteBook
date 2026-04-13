@@ -9,19 +9,6 @@ brain=Brain()
 brain_inertial = Inertial()
 
 
-'''
-# generating and setting random seed
-def initializeRandomSeed():
-    wait(100, MSEC)
-    xaxis = brain_inertial.acceleration(XAXIS) * 1000
-    yaxis = brain_inertial.acceleration(YAXIS) * 1000
-    zaxis = brain_inertial.acceleration(ZAXIS) * 1000
-    systemTime = brain.timer.system() * 100
-    urandom.seed(int(xaxis + yaxis + zaxis + systemTime)) 
-    
-# Initialize random seed 
-initializeRandomSeed()
-'''
 
 #endregion VEXcode Generated Robot Configuration
 
