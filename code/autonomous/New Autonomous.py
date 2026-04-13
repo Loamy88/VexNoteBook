@@ -69,7 +69,7 @@ class Init:
         self.Control = Controller()
         self.BeamArm = MotorGroup(Motor(Ports.PORT7), Motor(Ports.PORT1, True))
         self.Claws = Pneumatic(Ports.PORT11)
-        self.Claws.pump_off()
+        self.Claws.pump_on()
         self.Claws.retract(CYLINDER1)
         self.Claws.retract(CYLINDER2)
         self.PinArm = MotorGroup(Motor(Ports.PORT10), Motor(Ports.PORT4, True))
@@ -82,7 +82,10 @@ class Init:
         self.DriveMain = MotorGroup(self.DriveLeft, self.DriveRight)
         self.DriveMain.set_velocity(100, PERCENT)
         self.DriveMain.set_stopping(BRAKE)
-        self.Reset()
+        self.BeamArm.reset_position()
+        self.PinArm.reset_position()
+        self.DriveMain.reset_position()
+        brain_inertial.reset_rotation()
         print(DEBUG, "Devices Initilized")
     def LowBat(self):
         bat = brain.battery.capacity()
@@ -112,8 +115,8 @@ class Init:
         if Clear:
             brain.screen.clear_screen()
         if OpenClaws:
-            self.PinRelease()
-            self.BeamRelease()
+            self.PinClaw(False)
+            self.BeamClaw(False)
         if Print:
             brain.screen.print(str(self.Time))
         if ProgramStop:
@@ -121,25 +124,24 @@ class Init:
         if Block:
             while True:
                 wait(5000, MSEC)
-    def Reset(self):
-        self.BeamArm.reset_position()
-        self.PinArm.reset_position()
-        self.DriveMain.reset_position()
-        brain_inertial.reset_rotation()
-    def BeamRelease(self):
-        self.Claws.retract(CYLINDER1)
-    def BeamGrab(self):
-        self.Claws.extend(CYLINDER1)
-    def PinRelease(self):
-        self.Claws.retract(CYLINDER2)
-    def PinGrab(self):
-        self.Claws.extend(CYLINDER2)
+    def BeamClaw(self, Grab):
+        if Grab:
+            self.Claws.retract(CYLINDER1)
+        else:
+            self.Claws.extend(CYLINDER1)
+    def PinClaw(self, Grab):
+        if Grab:
+            self.Claws.retract(CYLINDER2)
+        else:
+            self.Claws.extend(CYLINDER2)
 
 
-    def InitPID(self, K, KTurn, Drive=(None, None)):
+    def InitPID(self, K, KTurn, Pin, Beam, Drive=(None, None)):
         print(DEBUG, "Initializing PID Controller")
         self.K = K
         self.KTurn = KTurn
+        self.KpPin = Pin
+        self.KpBeam = Beam
         if Drive:
             self.DefaultLeft, self.DefaultRight = Drive
         DegreesPerWheelRotation = 360 / 2.5
@@ -230,18 +232,14 @@ class Init:
         LeftMotor.stop()
         del TimeoutTimer
         return
-    def PIDTurn(self, Direction, TargetPos, K=None, RightMotor=None, LeftMotor=None, StationaryWaitTime=120, Reset=True, SpeedScale=1, Timeout=999000):
+    def PIDTurn(self, Direction, TargetPos, K=None, StationaryWaitTime=120, Reset=True, SpeedScale=1, Timeout=999000):
         global OverallScale
         SpeedScale *= OverallScale
         TimeoutTimer = Timer()
         StationaryTime = TimeoutTimer.time(MSEC)
         IsStationary = False
-        if self.Debug:
-            print("\033[32mTurn", Direction, TargetPos, "Radians", end="  ")
-        if not RightMotor:
-            RightMotor = self.DefaultRight
-        if not LeftMotor:
-            LeftMotor = self.DefaultLeft
+        RightMotor = self.DefaultRight
+        LeftMotor = self.DefaultLeft
         if not K:
             K = self.KTurn
         if Direction == LEFT:
@@ -302,9 +300,19 @@ class Init:
         LeftMotor.stop()
         del TimeoutTimer
         return
-    def SpinPinArm(self, Rotation, GearRatio=(1 / 3), Kp=3, Reset=True, Timeout=999000):
-        Motor_ = Robot.PinArm
-        TargetAngle = Rotation * GearRatio
+    def SpinArm(self, Arm, Rotation, Kp=None, Reset=True, Timeout=999000):
+        if Arm.lower() == "pin":
+            Motor_ = self.PinArm
+            GearRatio = (1 / 3)
+            if not Kp:
+                Kp = self.KpPin
+        elif Arm.lower() == "beam":
+            Motor_ = self.BeamArm
+            GearRatio = (1 / 5)
+            if not Kp:
+                Kp = self.KpBeam
+
+        TargetAngle = Rotation / GearRatio
 
         if Reset:
             Motor_.reset_position()
@@ -318,6 +326,11 @@ class Init:
             Power = Error * Kp
             Motor_.set_velocity(Clamp(Power), PERCENT)
             Motor_.spin(FORWARD)
+
+            if abs(Error) < 1 / GearRatio:
+                Motor_.stop()
+                del TimeoutTimer
+                return
             
         Motor_.stop()
         del TimeoutTimer
@@ -325,7 +338,7 @@ class Init:
 
 
 class InitOdometry:
-    def __init__(self, x=None, y=None, DoReset=True, InitialPos=(0, 0), debug=False, MarginOfError=0.5):
+    def __init__(self, x=None, y=None, DoReset=True, InitialPos=(0, 0), debug=False, MarginOfError=0.3):
         self.InitialPos = InitialPos
         self.Margin = MarginOfError
         self.RunningOdom = False
@@ -337,22 +350,16 @@ class InitOdometry:
             self.x = float(x)
         if y:
             self.y = float(y)
-        
-    def close(self):
-        self.Tracking = False
-        self.RunningOdom = False
-        self.ShowingData = False
 
-    def ShowData(self, Timeout=999000):
+    def ShowData(self):
         self.ShowingData = True
-        StartTime = brain.timer.time(MSEC)
 
-        while self.ShowingData and brain.timer.time(MSEC) - StartTime > Timeout:
+        while self.ShowingData:
             Heading   = "Heading:    " + str(brain_inertial.heading(DEGREES))
             Rotation  = "Rotation:   " + str(brain_inertial.rotation(DEGREES))
             PositionX = "X Position: " + str(self.x)
             PositionY = "Y Position: " + str(self.y)
-            Data = (Heading, Rotation, PositionX, PositionY)
+            Data = ("- Data - ", Heading, Rotation, PositionX, PositionY)
 
             brain.screen.set_font(FontType.MONO12)
 
@@ -409,7 +416,7 @@ class InitOdometry:
         self.reset_angle = brain_inertial.heading(TURNS)
         brain_inertial.set_heading(0, DEGREES)
 
-    def ToPoint(self, Point, Direction=FORWARD, StopSmooth=True, SpeedScale=1, TurnScale=1, DriveScale=1, DriveTimeout=999000):
+    def ToPoint(self, Point, Direction=FORWARD, StopSmooth=False, SpeedScale=1, TurnScale=1, DriveScale=1, DriveTimeout=999000):
         global PIDDriveScale
         PIDDriveScale = SpeedScale * DriveScale
         TargetX, TargetY = Point
@@ -420,12 +427,15 @@ class InitOdometry:
         self.RunningOdom = True
         self.DriveThread = None
         LastTurn = Robot.GetTime()
+        Distance = math.sqrt((TargetX - self.x) ** 2 + (TargetY - self.y) ** 2)
+        if Distance < self.Margin * 0.95:
+            self.RunningOdom = False
         while self.RunningOdom:
             angle_to_turn_to = round(math.atan2(TargetY - self.y, TargetX - self.x), 4)
             current_angle = round(brain_inertial.heading(TURNS) * math.pi * 2, 4)
+            Distance = math.sqrt((TargetX - self.x) ** 2 + (TargetY - self.y) ** 2)
             if Direction == REVERSE:
                 angle_to_turn_to += math.pi
-            # - Turn -
             degrees_to_turn = round((angle_to_turn_to - current_angle) % (2 * math.pi), 4)
 
             # Get optimal turn direction
@@ -441,7 +451,7 @@ class InitOdometry:
 
             degrees_to_turn = round(degrees_to_turn, 4)
             
-            if abs(degrees_to_turn) > math.tan(self.Margin / math.sqrt((TargetX - self.x) ** 2 + (TargetY - self.y) ** 2)) * 1.3:
+            if abs(degrees_to_turn) > math.tan(self.Margin / Distance) * 1.3:
                 # If the angle is off then stop driving forward and turn
                 if self.Debug:
                     print(self.x, self.y)
@@ -457,20 +467,20 @@ class InitOdometry:
 
             if not IsDriving:
                 # Drive if the robot isn't already doing so
-                Distance = round(math.sqrt((TargetX - self.x) ** 2 + (TargetY - self.y) ** 2), 4)
 
                 self.DriveThread = Thread(Robot.PIDDrive, (Direction, Distance))
                 IsDriving = True
 
                 # Check for stopping the Odom
-                if math.sqrt((TargetX - self.x) ** 2 + (TargetY - self.y) ** 2) < (self.Margin * 0.95):
+                if Distance < (self.Margin * 0.95):
                     self.RunningOdom = False
 
-        self.DriveThread.stop()
+        if self.DriveThread != None:
+            self.DriveThread.stop()
         self.RunningOdom = False
         if StopSmooth:
             self.StopDrivingSmooth()
-        print("\033[0m")
+        print("Finished\033[0m")
     
     def StopDrivingSmooth(self, Rate=0.994):
         CurrentVelocity = 100
@@ -494,7 +504,7 @@ def Min(Num, Lim=7.5):
 print("\n\033[34m---- Initilizing ----\n\033[0m")
 
 Robot = Init(Debug=True)
-Robot.InitPID((12.85, 0.08, 54.3), (27.0, 0.0155, 114.5), Drive=(Robot.DriveRight, Robot.DriveLeft))
+Robot.InitPID((12.85, 0.08, 54.3), (27.0, 0.0155, 114.5), 0.45, 0.7, Drive=(Robot.DriveRight, Robot.DriveLeft))
 Odom = InitOdometry(debug=True)
 
 print("\n\033[34m---- Initilization Complete ----\033[0m\n")
@@ -540,7 +550,7 @@ def Autonomous():
 
     # -- Get First Pins --
 
-    Robot.PIDTurn(RIGHT, math.pi / 2)
+    Robot.SpinArm("Beam", 90)
 
 
     # -- Get Second Pins --
@@ -573,7 +583,7 @@ def Autonomous():
     # Placeholder
 
 
-    return brain.program_stop()
+    return# brain.program_stop()
 
 
 

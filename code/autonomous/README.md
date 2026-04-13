@@ -7,7 +7,7 @@
   
 ---
 
-## Version 2.0.0 (April XX, 2026) - WORK IN PROGRESS (Listed Goals):  
+## Version 2.0.0 (April 12, 2026):  
 
 - New autonomous system: Odometry 
 
