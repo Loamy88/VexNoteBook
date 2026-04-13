@@ -1,7 +1,7 @@
 # Code Details and Versions
 
 - Download Old Code as [.py](https://loamy88.github.io/VexNoteBook/code/autonomous/110%20Autonomous.py) or [.iqpython](https://loamy88.github.io/VexNoteBook/code/autonomous/110%20-%20Autonomous%20-%20Working.iqpython) - ([View On Github](./110%20Autonomous.py))
-- Download New Code as [.py](https://loamy88.github.io/VexNoteBook/code/autonomous/New%20Autonomous.py) or [.iqpython](https://loamy88.github.io/VexNoteBook/code/autonomous/PTP%20Autonomous.iqpython) - ([View On Github](./New%20Autonomous.py))     *Work In Progress*
+- Download New Code as [.py](https://loamy88.github.io/VexNoteBook/code/autonomous/New%20Autonomous.py) or [.iqpython](https://loamy88.github.io/VexNoteBook/code/autonomous/PTP%20Autonomous.iqpython) - ([View On Github](./New%20Autonomous.py))
 - [Return to Code Page](../)
   
   
