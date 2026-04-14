@@ -7,6 +7,13 @@
   
 ---
 
+## Version 2.0.1 (April 14, 2026):
+
+- Added correction for small direction errors while odom is driving
+    - The PID turn isn't accurate enough to perfectly face the point from far away
+    - Lots of time is lost if the odom has to stop and correct while driving
+    - If there is small error, the odom adds slightly more power to one side to turn it before the error increases
+
 ## Version 2.0.0 (April 12, 2026):  
 
 - New autonomous system: Odometry 

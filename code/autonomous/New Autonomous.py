@@ -33,10 +33,10 @@ print(DEBUG, "Starting...")
 
 OverallScale = 1.1
 PIDDriveScale = 1
-PIDStopper = {}
+PIDValues = {}
 
 
-version = "2.0.0"
+version = "2.0.1"
 
 print(DEBUG, "180 Flip Autonomous Code Version:", version)
 
@@ -134,8 +134,9 @@ class Init:
         DegreesPerWheelRotation = 360 / 2.5
         self.DegreesPerInch = DegreesPerWheelRotation / (2.5 * math.pi)
         print(DEBUG, "PID Initialized")
-    def PIDDrive(self, Direction, TargetPos, K=None, RightMotor=None, StationaryWaitTime=120, LeftMotor=None, Reset=True, SpeedScale=1, Timeout=999000):
-        global OverallScale, PIDDriveScale
+    def PIDDrive(self, Direction, TargetPos, Reset=True, K=None, RightMotor=None, StationaryWaitTime=120, LeftMotor=None, ID=None, SpeedScale=1, Timeout=999000):
+        global OverallScale, PIDDriveScale, PIDValues
+        
         SpeedScale *= OverallScale * PIDDriveScale
         TimeoutTimer = Timer()
         StationaryTime = TimeoutTimer.time(MSEC)
@@ -162,13 +163,16 @@ class Init:
             TargetPos *= -1
         
         CurrentTime = TimeoutTimer.time(MSEC)
+        
+        PIDValues[ID] = TargetPos
 
         while CurrentTime < Timeout:
+            Target = PIDValues[ID]
             # Calculate error
             RightPos = (RightMotor.position(TURNS) * math.pi * 2) - RightStart
             LeftPos = (LeftMotor.position(TURNS) * math.pi * 2) - LeftStart
-            RightError = TargetPos - RightPos
-            LeftError = TargetPos - LeftPos
+            RightError = Target - RightPos
+            LeftError = Target - LeftPos
 
             # Track accumulated error
             RightIntegral += RightError
@@ -182,9 +186,9 @@ class Init:
             RightLastError = RightError
             LeftLastError = LeftError
             # Stop going faster if error is increasing
-            if RightDerivative * TargetPos > 0.0:  # TargetPos accounts for going backwards (* -1)
+            if RightDerivative * Target > 0.0:  # TargetPos accounts for going backwards (* -1)
                 RightDerivative = 0.0
-            if LeftDerivative * TargetPos > 0.0:  # TargetPos accounts for going backwards (* -1)
+            if LeftDerivative * Target > 0.0:  # TargetPos accounts for going backwards (* -1)
                 LeftDerivative = 0.0
 
             Difference = LeftError - RightError
@@ -404,7 +408,7 @@ class InitOdometry:
         brain_inertial.set_heading(0, DEGREES)
 
     def ToPoint(self, Point, Direction=FORWARD, StopSmooth=False, SpeedScale=1, TurnScale=1, DriveScale=1, DriveTimeout=999000):
-        global PIDDriveScale
+        global PIDDriveScale, PIDValues
         PIDDriveScale = SpeedScale * DriveScale
         TargetX, TargetY = Point
         if self.Debug:
@@ -451,11 +455,18 @@ class InitOdometry:
                 Robot.PIDTurn(turn_direction, degrees_to_turn, SpeedScale=(SpeedScale * TurnScale * 1.7))
                 LastTurn = Robot.GetTime()
                 wait(90, MSEC)
+            elif abs(degrees_to_turn) > 0.01:
+                # Slightly adjust angle while driving
+                if degrees_to_turn > 0:
+                    Robot.DriveRight.set_velocity(Robot.DriveRight.velocity(PERCENT) * 1.25, PERCENT)
+                if degrees_to_turn < 0:
+                    Robot.DriveLeft.set_velocity(Robot.DriveLeft.velocity(PERCENT) * 1.25, PERCENT)
+                PIDValues["OdomDrive"] = Distance
 
             if not IsDriving:
                 # Drive if the robot isn't already doing so
 
-                self.DriveThread = Thread(Robot.PIDDrive, (Direction, Distance))
+                self.DriveThread = Thread(Robot.PIDDrive, (Direction, Distance, "OdomDrive"))
                 IsDriving = True
 
                 # Check for stopping the Odom
@@ -508,7 +519,7 @@ def Colors():
         wait(400, MSEC)
 
 def Autonomous():
-    global OverallScale, PIDStopper
+    global OverallScale
     CreateThread = Event()
     ChangingColors = Thread(Colors)
     while not Robot.StartButton.pressing():
