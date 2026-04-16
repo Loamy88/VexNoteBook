@@ -164,10 +164,10 @@ class Init:
         
         CurrentTime = TimeoutTimer.time(MSEC)
         
-        PIDValues[ID] = TargetPos
+        PIDValues[ID] = {"distance": TargetPos}
 
         while CurrentTime < Timeout:
-            Target = PIDValues[ID]
+            Target = PIDValues[ID]["distance"]
             # Calculate error
             RightPos = (RightMotor.position(TURNS) * math.pi * 2) - RightStart
             LeftPos = (LeftMotor.position(TURNS) * math.pi * 2) - LeftStart
@@ -461,7 +461,7 @@ class InitOdometry:
                     Robot.DriveRight.set_velocity(Robot.DriveRight.velocity(PERCENT) * 1.25, PERCENT)
                 if degrees_to_turn < 0:
                     Robot.DriveLeft.set_velocity(Robot.DriveLeft.velocity(PERCENT) * 1.25, PERCENT)
-                PIDValues["OdomDrive"] = Distance
+                PIDValues["OdomDrive"]["distance"] = Distance
 
             if not IsDriving:
                 # Drive if the robot isn't already doing so
