@@ -134,7 +134,7 @@ class Init:
         DegreesPerWheelRotation = 360 / 2.5
         self.DegreesPerInch = DegreesPerWheelRotation / (2.5 * math.pi)
         print(DEBUG, "PID Initialized")
-    def PIDDrive(self, Direction, TargetPos, Reset=True, K=None, RightMotor=None, StationaryWaitTime=120, LeftMotor=None, ID=None, SpeedScale=1, Timeout=999000):
+    def PIDDrive(self, Direction, TargetPos, ID=None, Reset=True, K=None, RightMotor=None, StationaryWaitTime=120, LeftMotor=None, SpeedScale=1, Timeout=999000):
         global OverallScale, PIDDriveScale, PIDValues
         
         SpeedScale *= OverallScale * PIDDriveScale
@@ -421,28 +421,30 @@ class InitOdometry:
         Distance = math.sqrt((TargetX - self.x) ** 2 + (TargetY - self.y) ** 2)
         if Distance < self.Margin * 0.95:
             self.RunningOdom = False
+
         while self.RunningOdom:
+
             angle_to_turn_to = round(math.atan2(TargetY - self.y, TargetX - self.x), 4)
             current_angle = round(brain_inertial.heading(TURNS) * math.pi * 2, 4)
             Distance = math.sqrt((TargetX - self.x) ** 2 + (TargetY - self.y) ** 2)
             if Direction == REVERSE:
                 angle_to_turn_to += math.pi
-            degrees_to_turn = round((angle_to_turn_to - current_angle) % (2 * math.pi), 4)
+            radians_to_turn = round((angle_to_turn_to - current_angle) % (2 * math.pi), 4)
 
             # Get optimal turn direction
-            if degrees_to_turn > math.pi:
-                degrees_to_turn -= 2 * math.pi
-            if degrees_to_turn < -math.pi:
-                degrees_to_turn += 2 * math.pi
-            if degrees_to_turn < 0:
+            if radians_to_turn > math.pi:
+                radians_to_turn -= 2 * math.pi
+            if radians_to_turn < -math.pi:
+                radians_to_turn += 2 * math.pi
+            if radians_to_turn < 0:
                 turn_direction = LEFT
-                degrees_to_turn *= -1
+                radians_to_turn *= -1
             else:
                 turn_direction = RIGHT
 
-            degrees_to_turn = round(degrees_to_turn, 4)
+            radians_to_turn = round(radians_to_turn, 4)
             
-            if abs(degrees_to_turn) > math.tan(self.Margin / Distance) * 1.3:
+            if abs(radians_to_turn) > math.tan(self.Margin / Distance) * 1.3:
                 # If the angle is off then stop driving forward and turn
                 if self.Debug:
                     print(self.x, self.y)
@@ -452,15 +454,18 @@ class InitOdometry:
                 IsDriving = False
                 self.StopDrivingSmooth()
                 wait(90, MSEC)
-                Robot.PIDTurn(turn_direction, degrees_to_turn, SpeedScale=(SpeedScale * TurnScale * 1.7))
+                Robot.PIDTurn(turn_direction, radians_to_turn, SpeedScale=(SpeedScale * TurnScale * 1.7))
                 LastTurn = Robot.GetTime()
                 wait(90, MSEC)
-            elif abs(degrees_to_turn) > 0.01:
+            elif abs(radians_to_turn) > 0.1 and IsDriving and "OdomDrive" in PIDValues.keys():
                 # Slightly adjust angle while driving
-                if degrees_to_turn > 0:
-                    Robot.DriveRight.set_velocity(Robot.DriveRight.velocity(PERCENT) * 1.25, PERCENT)
-                if degrees_to_turn < 0:
-                    Robot.DriveLeft.set_velocity(Robot.DriveLeft.velocity(PERCENT) * 1.25, PERCENT)
+                # 305.6 is the rotations to spin one motor for turning one radian converted into percent (using 35 MSEC PID cycles)
+                if radians_to_turn > 0:
+                    print("nudging", Robot.DriveRight.velocity(PERCENT))
+                    Robot.DriveRight.set_velocity(Robot.DriveRight.velocity(PERCENT) + min(radians_to_turn * 305.6, 5.6), PERCENT)
+                if radians_to_turn < 0:
+                    print("nudging", Robot.DriveLeft.velocity(PERCENT))
+                    Robot.DriveLeft.set_velocity(Robot.DriveLeft.velocity(PERCENT) + min(radians_to_turn * 305.6, 5.6), PERCENT)
                 PIDValues["OdomDrive"]["distance"] = Distance
 
             if not IsDriving:
@@ -510,21 +515,13 @@ print("\n\033[34m---- Initilization Complete ----\033[0m\n")
 
 
 
-def Colors():
-    cols = [Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN, Color.BLUE, Color.PURPLE]
-    col = 0
-    while True:
-        col = (col + 1) % len(cols)
-        Robot.StartButton.set_color(cols[col])
-        wait(400, MSEC)
 
 def Autonomous():
     global OverallScale
     CreateThread = Event()
-    ChangingColors = Thread(Colors)
+    Robot.StartButton.set_color(Color.BLUE)
     while not Robot.StartButton.pressing():
         wait(40, MSEC)
-    ChangingColors.stop()
     Robot.StartButton.set_fade(FadeType.OFF)
     Robot.StartButton.on(Color.RED)
     brain_inertial.set_heading(0, DEGREES)
@@ -548,7 +545,7 @@ def Autonomous():
 
     # -- Get First Pins --
 
-    Robot.SpinArm("Beam", 90)
+    Odom.ToPoint((6, 0))
 
 
     # -- Get Second Pins --
