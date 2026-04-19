@@ -130,7 +130,7 @@ class Init:
         self.KpPin = Pin
         self.KpBeam = Beam
         if Drive:
-            self.DefaultLeft, self.DefaultRight = Drive
+            self.DefaultRight, self.DefaultLeft = Drive
         DegreesPerWheelRotation = 360 / 2.5
         self.DegreesPerInch = DegreesPerWheelRotation / (2.5 * math.pi)
         print(DEBUG, "PID Initialized")
@@ -164,7 +164,7 @@ class Init:
         
         CurrentTime = TimeoutTimer.time(MSEC)
         
-        PIDValues[ID] = {"distance": TargetPos}
+        PIDValues[ID] = {"distance": TargetPos, "direction": Direction, "running": True}
 
         while CurrentTime < Timeout:
             Target = PIDValues[ID]["distance"]
@@ -207,6 +207,7 @@ class Init:
                     RightMotor.stop()
                     LeftMotor.stop()
                     del TimeoutTimer
+                    PIDValues[ID]["running"] = False
                     return
             else:
                 StationaryTime = CurrentTime
@@ -222,6 +223,7 @@ class Init:
         RightMotor.stop()
         LeftMotor.stop()
         del TimeoutTimer
+        PIDValues[ID]["running"] = False
         return
     def PIDTurn(self, Direction, TargetPos, K=None, StationaryWaitTime=120, Reset=True, SpeedScale=1, Timeout=999000):
         global OverallScale
@@ -337,9 +339,9 @@ class InitOdometry:
         self.x, self.y = 0.0, 0.0
         if DoReset:
             self.Reset()
-        if x:
+        if x != None:
             self.x = float(x)
-        if y:
+        if y != None:
             self.y = float(y)
 
     def ShowData(self):
@@ -392,9 +394,6 @@ class InitOdometry:
             self.x += ChangeX
             self.y += ChangeY
 
-            self.x = self.x
-            self.y = self.y
-            
             # Reset LastMotorPos
             LastMotorPos = CurrentMotorPos
 
@@ -407,7 +406,7 @@ class InitOdometry:
         self.reset_angle = brain_inertial.heading(TURNS)
         brain_inertial.set_heading(0, DEGREES)
 
-    def ToPoint(self, Point, Direction=FORWARD, StopSmooth=False, SpeedScale=1, TurnScale=1, DriveScale=1, DriveTimeout=999000):
+    def ToPoint(self, Point, Direction=FORWARD, StopSmooth=False, SpeedScale=1, TurnScale=1, DriveScale=1):
         global PIDDriveScale, PIDValues
         PIDDriveScale = SpeedScale * DriveScale
         TargetX, TargetY = Point
@@ -466,7 +465,10 @@ class InitOdometry:
                 if radians_to_turn < 0:
                     print("nudging", Robot.DriveLeft.velocity(PERCENT))
                     Robot.DriveLeft.set_velocity(Robot.DriveLeft.velocity(PERCENT) + min(radians_to_turn * 305.6, 5.6), PERCENT)
-                PIDValues["OdomDrive"]["distance"] = Distance
+                if PIDValues["OdomDrive"]["direction"] == FORWARD:
+                    PIDValues["OdomDrive"]["distance"] = Distance
+                else:
+                    PIDValues["OdomDrive"]["distance"] = -Distance
 
             if not IsDriving:
                 # Drive if the robot isn't already doing so
@@ -477,6 +479,10 @@ class InitOdometry:
                 # Check for stopping the Odom
                 if Distance < (self.Margin * 0.95):
                     self.RunningOdom = False
+
+            elif "OdomDrive" in PIDValues.keys():
+                # Update if drive thread has died out on it's own
+                IsDriving = PIDValues["OdomDrive"]["running"]
 
         if self.DriveThread != None:
             self.DriveThread.stop()
@@ -518,7 +524,6 @@ print("\n\033[34m---- Initilization Complete ----\033[0m\n")
 
 def Autonomous():
     global OverallScale
-    CreateThread = Event()
     Robot.StartButton.set_color(Color.BLUE)
     while not Robot.StartButton.pressing():
         wait(40, MSEC)
@@ -583,7 +588,6 @@ def Autonomous():
 
 
 def main():
-    VidTimer = Timer()
     AutoThread = Thread(Autonomous)
     #brain.buttonCheck.pressed(Autonomous2)
 
