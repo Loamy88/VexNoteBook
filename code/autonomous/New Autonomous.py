@@ -236,11 +236,11 @@ class Init:
         if not K:
             K = self.KTurn
         if Direction == LEFT:
-            LeftDir = 1
-            RightDir = -1
-        elif Direction == RIGHT:
             LeftDir = -1
             RightDir = 1
+        elif Direction == RIGHT:
+            LeftDir = 1
+            RightDir = -1
         Kp = K[0]
         Ki = K[1]
         Kd = K[2]
