@@ -6,6 +6,10 @@
 
 ---
 
+## Version 1.1.4 (April 20, 2026):
+
+- Make the robot check if the aligners are open when the program starts
+
 ## Version 1.1.3 (April 11, 2026):
 
 - Make L3 activate any aligners that have their corresponding arms raised

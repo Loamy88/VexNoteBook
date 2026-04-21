@@ -31,7 +31,7 @@ print(DEBUG, "Starting...")
 # Library imports
 from vex import *
 
-version = "1.1.3"
+version = "1.1.4"
 
 print(DEBUG, "180 Flip Code Version:", version)
 
@@ -42,7 +42,7 @@ print(DEBUG, "180 Flip Code Version:", version)
 DriveMode = "tank"
 DoingSequence = []
 LiftingBeam = None
-Aligned = False
+ActiveBeamAligner = False
 ActivePinAligner = True
 Flipping = None
 Lifting = None
@@ -115,14 +115,18 @@ class Init:
             self.Main.set_velocity(100, PERCENT)
     class InitAligner:
         def __init__(self, Pn):
+            global ActiveBeamAligner
             self.PneumaticDevice = Pn
+            ActiveBeamAligner = bool(self.PneumaticDevice.status() & 768)
         def down(self):
             self.PneumaticDevice.extend(CYLINDER1)
         def up(self):
             self.PneumaticDevice.retract(CYLINDER1)
     class InitPinAligner:
         def __init__(self, Pn):
+            global ActivePinAligner
             self.PneumaticDevice = Pn
+            ActivePinAligner = bool(self.PneumaticDevice.status() & 3)
         def down(self):
             self.PneumaticDevice.extend(CYLINDER2)
         def up(self):
@@ -369,14 +373,14 @@ def SwitchModes():
         Robot.Light.set_color(Color.BLUE)
 
 def ActivateBeamAligner(NoL3=False):
-    global Aligned
+    global ActiveBeamAligner
     if Robot.L3 or NoL3:
-        if Aligned:
+        if ActiveBeamAligner:
             Robot.Aligner.up()
-            Aligned = False
+            ActiveBeamAligner = False
         else:
             Robot.Aligner.down()
-            Aligned = True
+            ActiveBeamAligner = True
 
 def ActivatePinAligner(NoL3=False):
     global ActivePinAligner
