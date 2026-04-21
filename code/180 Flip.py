@@ -417,10 +417,12 @@ def StopCheck():
             Robot.IsStopping = False
         if Count == 40:
             Robot.Aligner.up()
+            Robot.PinAligner.down()
             brain.program_stop()
         if Count == 20:
             brain.play_note(2, 3, 400)
             Robot.Aligner.up()
+            Robot.PinAligner.down()
             Robot.LowBat()
 
 def Num2Let(n):
