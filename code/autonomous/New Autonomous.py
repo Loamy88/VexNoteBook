@@ -14,10 +14,10 @@ brain_inertial = Inertial()
 
 # ------------------------------------------
 # 
-# 	Project:      VEXcode Project
-# 	Author:       VEX
-# 	Created:
-# 	Description:  VEXcode IQ Python Project
+# 	Project:      United Robotics 180 Flip Code
+#   Team:         26277E
+# 	Author:       Euan O'Brien
+# 	Description:  VEX IQ python program for advanced autonomous
 # 
 # ------------------------------------------
 
