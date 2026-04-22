@@ -6,6 +6,10 @@
 
 ---
 
+## Version 1.1.5 (April 21, 2026):
+
+- Switched the aligner system to check if the cylinders are extended instead of saving a variable
+
 ## Version 1.1.4 (April 20, 2026):
 
 - Make the robot check if the aligners are open when the program starts

@@ -31,7 +31,7 @@ print(DEBUG, "Starting...")
 # Library imports
 from vex import *
 
-version = "1.1.4"
+version = "1.1.5"
 
 print(DEBUG, "180 Flip Code Version:", version)
 
@@ -42,8 +42,6 @@ print(DEBUG, "180 Flip Code Version:", version)
 DriveMode = "tank"
 DoingSequence = []
 LiftingBeam = None
-ActiveBeamAligner = False
-ActivePinAligner = True
 Flipping = None
 Lifting = None
 
@@ -78,7 +76,7 @@ class Init:
             motor.set_velocity(100, PERCENT)
         self.DriveMotors = self.InitDrive()
         self.PneumaticAlignerPinAligner = Pneumatic(Ports.PORT8)
-        self.Aligner = self.InitAligner(self.PneumaticAlignerPinAligner)
+        self.BeamAligner = self.InitBeamAligner(self.PneumaticAlignerPinAligner)
         self.PinAligner = self.InitPinAligner(self.PneumaticAlignerPinAligner)
         self.Light.on()
         self.Light.set_color(Color.RED)
@@ -113,24 +111,26 @@ class Init:
             self.Right = Motor(Ports.PORT3)
             self.Main = MotorGroup(self.Left, self.Right)
             self.Main.set_velocity(100, PERCENT)
-    class InitAligner:
+    class InitBeamAligner:
         def __init__(self, Pn):
-            global ActiveBeamAligner
             self.PneumaticDevice = Pn
-            ActiveBeamAligner = bool(self.PneumaticDevice.status() & 768)
+            self.IsActive = bool(self.PneumaticDevice.status() & 768 == 768)
         def down(self):
             self.PneumaticDevice.extend(CYLINDER1)
+            self.IsActive = True
         def up(self):
             self.PneumaticDevice.retract(CYLINDER1)
+            self.IsActive = False
     class InitPinAligner:
         def __init__(self, Pn):
-            global ActivePinAligner
             self.PneumaticDevice = Pn
-            ActivePinAligner = not bool(self.PneumaticDevice.status() & 3)
+            self.IsActive = not bool(self.PneumaticDevice.status() & 3 == 3)
         def down(self):
             self.PneumaticDevice.extend(CYLINDER2)
+            self.IsActive = False
         def up(self):
             self.PneumaticDevice.retract(CYLINDER2)
+            self.IsActive = True
     class InitPID:
         def __init__(self, kP, kI, kD, WheelDiameter):
             print(DEBUG, "Initializing PID Controller")
@@ -302,7 +302,7 @@ def ClawAlignerControl():
 
     elif Robot.ClawMode == "TWOBUTTONOPENCLOSE":
         while True:
-            # - Secondary Mode (Not in use) -
+            # - Secondary Mode -
 
             wait(8, MSEC)
             if Robot.Control.buttonFDown.pressing(): # Beam claw open
@@ -373,24 +373,18 @@ def SwitchModes():
         Robot.Light.set_color(Color.BLUE)
 
 def ActivateBeamAligner(NoL3=False):
-    global ActiveBeamAligner
     if Robot.L3 or NoL3:
-        if ActiveBeamAligner:
-            Robot.Aligner.up()
-            ActiveBeamAligner = False
+        if Robot.BeamAligner.PneumaticDevice.status() & 768 == 768: # cylinder is extended
+            Robot.BeamAligner.up()
         else:
-            Robot.Aligner.down()
-            ActiveBeamAligner = True
+            Robot.BeamAligner.down()
 
 def ActivatePinAligner(NoL3=False):
-    global ActivePinAligner
     if Robot.L3 or NoL3:
-        if ActivePinAligner:
-            Robot.PinAligner.down()
-            ActivePinAligner = False
-        else:
+        if Robot.PinAligner.PneumaticDevice.status() & 3 == 3: # cylinders are extended
             Robot.PinAligner.up()
-            ActivePinAligner = True
+        else:
+            Robot.PinAligner.down()
 
 def ActivateAligners():
     # Pin Arm Check
@@ -402,7 +396,7 @@ def ActivateAligners():
     if Robot.BeamArm.position(DEGREES) / 5 > 45:
         ActivateBeamAligner(NoL3=True)
     else:
-        Robot.Aligner.up()
+        Robot.BeamAligner.up()
 
 def StopCheck():
     Pressing = False
@@ -416,12 +410,12 @@ def StopCheck():
             Count = 0
             Robot.IsStopping = False
         if Count == 40:
-            Robot.Aligner.up()
+            Robot.BeamAligner.up()
             Robot.PinAligner.down()
             brain.program_stop()
         if Count == 20:
             brain.play_note(2, 3, 400)
-            Robot.Aligner.up()
+            Robot.BeamAligner.up()
             Robot.PinAligner.down()
             Robot.LowBat()
 
