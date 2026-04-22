@@ -28,8 +28,6 @@ ERROR = "\033[31m[ERROR]\033[0m"
 
 
 print(DEBUG, "Starting...")
-# Library imports
-from vex import *
 
 version = "1.1.5"
 
@@ -42,8 +40,6 @@ print(DEBUG, "180 Flip Code Version:", version)
 DriveMode = "tank"
 DoingSequence = []
 LiftingBeam = None
-Flipping = None
-Lifting = None
 
 
 # Initialize Motors
@@ -208,6 +204,7 @@ def Clamp(Num, Max=100, Min=-100):
 
 def Drive():
     global DriveMode
+    LastRightSide, LastLeftSide = 0, 0
     while True:
         wait(8, MSEC)
         a = Robot.Control.axisA.position()
@@ -219,25 +216,34 @@ def Drive():
         elif DriveMode == "arcade":
             LeftSide = Clamp((a + c))
             RightSide = Clamp((a - c))
-        Sides = [Robot.DriveMotors.Right, Robot.DriveMotors.Left]
-        # Check if the speed is in the deadband range.
-        if RightSide < 6 and RightSide > -6:
-            Sides[0].stop()
-        else:
-            # Spin the side at the speed 0-100 in the correct direction.
-            Sides[0].set_velocity(RightSide, PERCENT)
-            Sides[0].spin(FORWARD)
-        # Check if the speed is in the deadband range.
-        if LeftSide < 6 and LeftSide > -6:
-            Sides[1].stop()
-        else:
-            # Spin the side at the speed 0-100 in the correct direction.
-            Sides[1].set_velocity(LeftSide, PERCENT)
-            Sides[1].spin(FORWARD)
+
+        # only update motors if the command is different
+        if LastRightSide != RightSide:
+            # Check if the speed is in the deadband range.
+            if RightSide < 6 and RightSide > -6:
+                Robot.DriveMotors.Right.stop()
+            else:
+                # Spin the side at the speed 0-100 in the correct direction.
+                Robot.DriveMotors.Right.set_velocity(RightSide, PERCENT)
+                Robot.DriveMotors.Right.spin(FORWARD)
+
+
+        # only update motors if the command is different
+        if LastLeftSide != RightSide:
+            # Check if the speed is in the deadband range.
+            if LeftSide < 6 and LeftSide > -6:
+                    Robot.DriveMotors.Left.stop()
+            else:
+                # Spin the side at the speed 0-100 in the correct direction.
+                Robot.DriveMotors.Left.set_velocity(LeftSide, PERCENT)
+                Robot.DriveMotors.Left.spin(FORWARD)
+
         while "drive" in DoingSequence:
             wait(30, MSEC)
         if Robot.Debug:
             print("Left:", Robot.DriveMotors.Left.velocity(PERCENT), "  Right:", Robot.DriveMotors.Right.velocity(PERCENT))
+
+        LastRightSide, LastLeftSide = RightSide, LeftSide
 
 def ClawAlignerControl():
     FUpReady = True
@@ -315,21 +321,13 @@ def ClawAlignerControl():
                 Robot.Claws.extend(Robot.Pin)
 
 def ArmControl():
-    global DoingSequence, Flipping, Lifting
+    global DoingSequence
     Delay = 0
     while True:
         wait(8, MSEC)
         if Robot.Control.buttonRUp.pressing(): # Lift beam arm
-            if Lifting:
-                Lifting.stop()
-                Lifting = None
-                Robot.BeamArm.set_velocity(100, PERCENT)
             Robot.BeamArm.spin(FORWARD)
         if Robot.Control.buttonRDown.pressing(): # Lower beam arm
-            if Lifting:
-                Lifting.stop()
-                Lifting = None
-                Robot.BeamArm.set_velocity(100, PERCENT)
             Robot.BeamArm.spin(REVERSE)
         if Robot.BeamArm.position(DEGREES) < 58:
             Robot.BeamArm.set_stopping(COAST)
@@ -339,20 +337,13 @@ def ArmControl():
             Robot.BeamArm.set_stopping(HOLD)
 
         if not Robot.Control.buttonRUp.pressing() and not Robot.Control.buttonRDown.pressing() and not "beam" in DoingSequence: # Check for beam arm not moving
-            if not Lifting:
-                Robot.BeamArm.stop()
+            Robot.BeamArm.stop()
 
                 
         if Robot.Control.buttonLUp.pressing(): # Lift pin arm
-            if Flipping:
-                Flipping.stop()
-                Flipping = None
             Robot.PinArm.spin(FORWARD)
         if Robot.Control.buttonLDown.pressing(): # Lower pin arm
             Robot.PinArm.spin(REVERSE)
-            if Flipping:
-                Flipping.stop()
-                Flipping = None
         if Robot.PinArm.position(DEGREES) < 50:
             Robot.PinArm.set_stopping(COAST)
             if Robot.PinArm.position(DEGREES) < 0:
@@ -361,8 +352,7 @@ def ArmControl():
             Robot.PinArm.set_stopping(HOLD)
 
         if not Robot.Control.buttonLUp.pressing() and not Robot.Control.buttonLDown.pressing() and not "pin" in DoingSequence: # Check for pin arm not moving
-            if not Flipping:
-                Robot.PinArm.stop()
+            Robot.PinArm.stop()
 
 def SwitchModes():
     global DriveMode
