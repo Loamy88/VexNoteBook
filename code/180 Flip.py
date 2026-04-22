@@ -126,7 +126,7 @@ class Init:
         def __init__(self, Pn):
             global ActivePinAligner
             self.PneumaticDevice = Pn
-            ActivePinAligner = bool(self.PneumaticDevice.status() & 3)
+            ActivePinAligner = not bool(self.PneumaticDevice.status() & 3)
         def down(self):
             self.PneumaticDevice.extend(CYLINDER2)
         def up(self):
@@ -386,10 +386,10 @@ def ActivatePinAligner(NoL3=False):
     global ActivePinAligner
     if Robot.L3 or NoL3:
         if ActivePinAligner:
-            Robot.PinAligner.up()
+            Robot.PinAligner.down()
             ActivePinAligner = False
         else:
-            Robot.PinAligner.down()
+            Robot.PinAligner.up()
             ActivePinAligner = True
 
 def ActivateAligners():
