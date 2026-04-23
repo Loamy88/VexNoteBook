@@ -29,7 +29,7 @@ ERROR = "\033[31m[ERROR]\033[0m"
 
 print(DEBUG, "Starting...")
 
-version = "1.1.5"
+version = "1.1.6"
 
 print(DEBUG, "180 Flip Code Version:", version)
 
@@ -213,6 +213,10 @@ def Drive():
         if DriveMode == "tank":
             LeftSide = a
             RightSide = d
+            if abs(RightSide - LeftSide) <= 3:
+                Average = round((RightSide + LeftSide) / 2)
+                LeftSide = Average
+                RightSide = Average
         elif DriveMode == "arcade":
             LeftSide = Clamp((a + c))
             RightSide = Clamp((a - c))

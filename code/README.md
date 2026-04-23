@@ -6,6 +6,10 @@
 
 ---
 
+## Version 1.1.6 (April 22, 2026):
+
+- If the (in tank style) joysticks are very close to each other, assume the user is trying to make them the same and adjust the values accordingly 
+
 ## Version 1.1.5 (April 21, 2026):
 
 - Switched the aligner system to check if the cylinders are extended instead of saving a variable
