@@ -233,7 +233,7 @@ def Drive():
 
 
         # only update motors if the command is different
-        if LastLeftSide != RightSide:
+        if LastLeftSide != LeftSide:
             # Check if the speed is in the deadband range.
             if LeftSide < 6 and LeftSide > -6:
                     Robot.DriveMotors.Left.stop()
