@@ -29,7 +29,7 @@ ERROR = "\033[31m[ERROR]\033[0m"
 
 print(DEBUG, "Starting...")
 
-version = "1.1.6"
+version = "1.1.7"
 
 print(DEBUG, "180 Flip Code Version:", version)
 
@@ -425,42 +425,15 @@ def main():
     sd = brain.sdcard
     VidTimer = Timer()
     try:
+
         DriveThread = Thread(Drive)
         ArmThread = Thread(ArmControl)
         ClawAlignerThread = Thread(ClawAlignerControl)
+
         Robot.Control.buttonR3.pressed(SwitchModes)
         Robot.Control.buttonL3.pressed(ActivateAligners)
+
         StopThread = Thread(StopCheck)
-        if sd.is_inserted():
-            print(DEBUG, "SD Card Found, Tracking Movement")
-            try:
-                if not sd.exists("TravelDistance.txt"):
-                    sd.savefile("TravelDistance.txt", bytearray("0"))
-                    current_distance = 0
-                else:
-                    try:
-                        current_distance = int(sd.loadfile("TravelDistance.txt"))
-                    except Exception:
-                        sd.savefile("TravelDistance.txt", bytearray("0"))
-                        current_distance = 0
-                previous_positions = (0, 0)
-                while sd.is_inserted():
-                    if not (brain.buttonCheck.pressing() or Robot.IsStopping):
-
-                        change = 0
-                        current_positions = (Robot.DriveMotors.Right.position(DEGREES), Robot.DriveMotors.Left.position(DEGREES))
-
-                        for side_index, side_position in enumerate(current_positions):
-                            change += side_position - previous_positions[side_index]
-                        
-                        change /= 2
-
-                        current_distance += abs(change)
-                        sd.savefile("TravelDistance.txt", bytearray(str(current_distance)))
-
-                        wait(12, MSEC)
-            except Exception as e:
-                print(ERROR, "Travel Distance Saving Failed:", e)
                     
     except Exception as e:
         print(ERROR, e)

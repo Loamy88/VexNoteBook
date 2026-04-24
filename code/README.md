@@ -6,6 +6,10 @@
 
 ---
 
+## Version 1.1.7 (April 23, 2026):
+
+- Remove distance tracking to optimize
+
 ## Version 1.1.6 (April 22, 2026):
 
 - If the (in tank style) joysticks are very close to each other, assume the user is trying to make them the same and adjust the values accordingly 
