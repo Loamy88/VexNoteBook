@@ -1,5 +1,6 @@
 #region VEXcode Generated Robot Configuration
 from vex import *
+import urandom
 import math
 
 # Brain should be defined by default
@@ -9,6 +10,18 @@ brain=Brain()
 brain_inertial = Inertial()
 
 
+
+# generating and setting random seed
+def initializeRandomSeed():
+    wait(100, MSEC)
+    xaxis = brain_inertial.acceleration(XAXIS) * 1000
+    yaxis = brain_inertial.acceleration(YAXIS) * 1000
+    zaxis = brain_inertial.acceleration(ZAXIS) * 1000
+    systemTime = brain.timer.system() * 100
+    urandom.seed(int(xaxis + yaxis + zaxis + systemTime)) 
+    
+# Initialize random seed 
+initializeRandomSeed()
 
 #endregion VEXcode Generated Robot Configuration
 
@@ -387,7 +400,7 @@ def Min(Num, Lim=7.5):
 print("\n\033[34m---- Initilizing ----\n\033[0m")
 
 Robot = Init(Debug=True)
-Robot.InitPID((9.95, 0.08, 58.3), (21.0, 0.0155, 114.5), 0.45, 0.7, Drive=(Robot.DriveRight, Robot.DriveLeft))
+Robot.InitPID((12.95, 0.093, 20.0), (21.0, 0.0155, 114.5), 0.45, 0.7, Drive=(Robot.DriveRight, Robot.DriveLeft))
 Odom = InitOdometry(debug=True)
 
 print("\n\033[34m---- Initilization Complete ----\033[0m\n")
@@ -424,7 +437,7 @@ def Autonomous():
 
     # -- Get First Pins --
 
-    Robot.PIDDrive(FORWARD, 10)
+    Robot.PIDTurn(RIGHT, 1.57)
 
 
     # -- Get Second Pins --
@@ -457,6 +470,7 @@ def Autonomous():
     # Placeholder
 
 
+    brain.play_note(3,0,400)
     return# brain.program_stop()
 
 
