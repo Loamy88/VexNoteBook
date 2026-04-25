@@ -28,9 +28,6 @@ DEBUG = "\033[35m[DEBUG]\033[0m"
 ERROR = "\033[31m[ERROR]\033[0m"
 
 
-print(DEBUG, "Starting...")
-
-
 OverallScale = 1.1
 PIDDriveScale = 1
 PIDValues = {}
@@ -39,6 +36,7 @@ PIDValues = {}
 version = "2.0.1"
 
 print(DEBUG, "180 Flip Autonomous Code Version:", version)
+
 
 
 
@@ -75,42 +73,10 @@ class Init:
         brain_inertial.reset_rotation()
         print(DEBUG, "Devices Initilized")
     def LowBat(self):
-        bat = brain.battery.capacity()
-        if bat < 60:
-            color = "\033[31m"
-        else:
-            color = "\033[91m"
-        print(DEBUG, "Low Battery:", color, bat)
-        Percent = bat / 100
-        brain.screen.set_fill_color(Color.RED)
-        brain.screen.set_pen_color(Color.RED)
-        brain.screen.draw_rectangle(40, 29, 81 * Percent, 52)
-        brain.screen.set_pen_width(6)
-        brain.screen.set_fill_color(Color.TRANSPARENT)
-        brain.screen.set_pen_color(Color.WHITE)
-        brain.screen.draw_rectangle(34, 23, 90, 60)
-        brain.screen.set_fill_color(Color.WHITE)
-        brain.screen.set_pen_width(1)
-        brain.screen.draw_rectangle(27, 43, 8, 24)
-    def Start(self):
-        self.AutoTimer = Timer()
-    def GetTime(self):
-        self.Time = self.AutoTimer.time()
-        return self.Time
-    def Stop(self, Print=True, Clear=True, ProgramStop=False, Block=True, OpenClaws=True):
-        self.GetTime()
-        if Clear:
-            brain.screen.clear_screen()
-        if OpenClaws:
-            self.PinClaw(False)
-            self.BeamClaw(False)
-        if Print:
-            brain.screen.print(str(self.Time))
-        if ProgramStop:
-            brain.program_stop()
-        if Block:
-            while True:
-                wait(5000, MSEC)
+        batt = brain.battery.capacity()
+        note = round(batt / 20)
+        brain.play_note(3, note, 500)
+        brain.screen.print("Low Battery: " + str(batt))
     def BeamClaw(self, Grab):
         if Grab:
             self.Claws.retract(CYLINDER1)
@@ -134,7 +100,7 @@ class Init:
         DegreesPerWheelRotation = 360 / 2.5
         self.DegreesPerInch = DegreesPerWheelRotation / (2.5 * math.pi)
         print(DEBUG, "PID Initialized")
-    def PIDDrive(self, Direction, TargetPos, ID=None, Reset=True, K=None, RightMotor=None, StationaryWaitTime=120, LeftMotor=None, SpeedScale=1, Timeout=999000):
+    def PIDDrive(self, Direction, TargetPos, ID=None, Reset=True, K=None, StationaryWaitTime=120, SpeedScale=1, Timeout=999000):
         global OverallScale, PIDDriveScale, PIDValues
         
         SpeedScale *= OverallScale * PIDDriveScale
@@ -143,10 +109,8 @@ class Init:
         IsStationary = True
         if self.Debug:
             print("\033[32mDrive", Direction, TargetPos, "radians?")
-        if not RightMotor:
-            RightMotor = self.DefaultRight
-        if not LeftMotor:
-            LeftMotor = self.DefaultLeft
+        RightMotor = self.DefaultRight
+        LeftMotor = self.DefaultLeft
         if Reset:
             LeftStart = LeftMotor.position(TURNS) * math.pi * 2
             RightStart = RightMotor.position(TURNS) * math.pi * 2
@@ -164,10 +128,11 @@ class Init:
         
         CurrentTime = TimeoutTimer.time(MSEC)
         
-        PIDValues[ID] = {"distance": TargetPos, "direction": Direction, "running": True}
+        PIDValues[ID] = {"distance": TargetPos, "direction": Direction, "running": True, "speed": SpeedScale}
 
         while CurrentTime < Timeout:
             Target = PIDValues[ID]["distance"]
+            Speed = PIDValues[ID]["speed"]
             # Calculate error
             RightPos = (RightMotor.position(TURNS) * math.pi * 2) - RightStart
             LeftPos = (LeftMotor.position(TURNS) * math.pi * 2) - LeftStart
@@ -186,9 +151,9 @@ class Init:
             RightLastError = RightError
             LeftLastError = LeftError
             # Stop going faster if error is increasing
-            if RightDerivative * Target > 0.0:  # TargetPos accounts for going backwards (* -1)
+            if RightDerivative * Target > 0.0:  # Target accounts for going backwards (* -1)
                 RightDerivative = 0.0
-            if LeftDerivative * Target > 0.0:  # TargetPos accounts for going backwards (* -1)
+            if LeftDerivative * Target > 0.0:  # Target accounts for going backwards (* -1)
                 LeftDerivative = 0.0
 
             Difference = LeftError - RightError
@@ -196,8 +161,8 @@ class Init:
             # Calculate power and move the robot
             RightPower = (RightError * Kp) + (RightIntegral * Ki) + (RightDerivative * Kd) + (Difference * Kp / 2)
             LeftPower = (LeftError * Kp) + (LeftIntegral * Ki) + (LeftDerivative * Kd) - (Difference * Kp / 2)
-            RightMotor.set_velocity(Min(Clamp(RightPower * SpeedScale)), PERCENT)
-            LeftMotor.set_velocity(Min(Clamp(LeftPower * SpeedScale)), PERCENT)
+            RightMotor.set_velocity(Min(Clamp(RightPower * Speed)), PERCENT)
+            LeftMotor.set_velocity(Min(Clamp(LeftPower * Speed)), PERCENT)
             RightMotor.spin(FORWARD)
             LeftMotor.spin(FORWARD)
 
@@ -267,8 +232,8 @@ class Init:
 
             # Calculate and apply power
             Power = (Error * Kp) + (Derivative * Kd) + (Integral * Ki)
-            RightMotor.set_velocity(Clamp(Power * SpeedScale * RightDir), PERCENT)
-            LeftMotor.set_velocity(Clamp(Power * SpeedScale * LeftDir), PERCENT)
+            RightMotor.set_velocity(Min(Clamp(Power * SpeedScale * RightDir)), PERCENT)
+            LeftMotor.set_velocity(Min(Clamp(Power * SpeedScale * LeftDir)), PERCENT)
             RightMotor.spin(FORWARD)
             LeftMotor.spin(FORWARD)
 
@@ -403,7 +368,6 @@ class InitOdometry:
         
     def Reset(self):
         self.x, self.y = self.InitialPos
-        self.reset_angle = brain_inertial.heading(TURNS)
         brain_inertial.set_heading(0, DEGREES)
 
     def ToPoint(self, Point, Direction=FORWARD, StopSmooth=False, SpeedScale=1, TurnScale=1, DriveScale=1):
@@ -416,7 +380,6 @@ class InitOdometry:
         IsDriving = False
         self.RunningOdom = True
         self.DriveThread = None
-        LastTurn = Robot.GetTime()
         Distance = math.sqrt((TargetX - self.x) ** 2 + (TargetY - self.y) ** 2)
         if Distance < self.Margin * 0.95:
             self.RunningOdom = False
@@ -443,28 +406,27 @@ class InitOdometry:
 
             radians_to_turn = round(radians_to_turn, 4)
             
-            if abs(radians_to_turn) > math.tan(self.Margin / Distance) * 1.3:
+            if abs(radians_to_turn) > max(math.tan(self.Margin / Distance) * 1.3, 0.18):
                 # If the angle is off then stop driving forward and turn
                 if self.Debug:
-                    print(self.x, self.y)
-                    print("\033[32mCurrent Angle:", current_angle, "Angle to Point:", angle_to_turn_to, "- Adjusting Angle (After", round((Robot.GetTime() - LastTurn) / 1000, 2), "Seconds)")
+                    print("\033[32mCurrent Angle:", current_angle, "Angle to Point:", angle_to_turn_to, "- Adjusting Angle")
                 if self.DriveThread != None:
                     self.DriveThread.stop()
                 IsDriving = False
                 self.StopDrivingSmooth()
                 wait(90, MSEC)
                 Robot.PIDTurn(turn_direction, radians_to_turn, SpeedScale=(SpeedScale * TurnScale * 1.7))
-                LastTurn = Robot.GetTime()
                 wait(90, MSEC)
             elif abs(radians_to_turn) > 0.1 and IsDriving and "OdomDrive" in PIDValues.keys():
                 # Slightly adjust angle while driving
-                # 305.6 is the rotations to spin one motor for turning one radian converted into percent (using 35 MSEC PID cycles)
+                # 305.6 is the rotations to spin one motor for turning one radian converted into percent (using 35 MSEC PID cycles)  <- future referance
+                print("nudging", radians_to_turn)
                 if radians_to_turn > 0:
-                    print("nudging", Robot.DriveRight.velocity(PERCENT))
-                    Robot.DriveRight.set_velocity(Robot.DriveRight.velocity(PERCENT) + min(radians_to_turn * 305.6, 5.6), PERCENT)
+                    # Turn Left
+                    Robot.DriveLeft.set_velocity(Robot.DriveLeft.velocity(PERCENT) + min(radians_to_turn * 180.6, 5.6), PERCENT)
                 if radians_to_turn < 0:
-                    print("nudging", Robot.DriveLeft.velocity(PERCENT))
-                    Robot.DriveLeft.set_velocity(Robot.DriveLeft.velocity(PERCENT) + min(radians_to_turn * 305.6, 5.6), PERCENT)
+                    # Turn Left
+                    Robot.DriveRight.set_velocity(Robot.DriveRight.velocity(PERCENT) + min(radians_to_turn * 180.6, 5.6), PERCENT)
                 if PIDValues["OdomDrive"]["direction"] == FORWARD:
                     PIDValues["OdomDrive"]["distance"] = Distance
                 else:
@@ -474,6 +436,9 @@ class InitOdometry:
                 # Drive if the robot isn't already doing so
 
                 self.DriveThread = Thread(Robot.PIDDrive, (Direction, Distance, "OdomDrive"))
+                while not "OdomDrive" in PIDValues.keys():
+                    wait(2, MSEC)
+                PIDValues["OdomDrive"]["speed"] *= SpeedScale * TurnScale
                 IsDriving = True
 
                 # Check for stopping the Odom
@@ -489,7 +454,6 @@ class InitOdometry:
         self.RunningOdom = False
         if StopSmooth:
             self.StopDrivingSmooth()
-        print("Finished\033[0m")
     
     def StopDrivingSmooth(self, Rate=0.994):
         CurrentVelocity = 100
@@ -513,7 +477,7 @@ def Min(Num, Lim=7.5):
 print("\n\033[34m---- Initilizing ----\n\033[0m")
 
 Robot = Init(Debug=True)
-Robot.InitPID((12.85, 0.08, 54.3), (27.0, 0.0155, 114.5), 0.45, 0.7, Drive=(Robot.DriveRight, Robot.DriveLeft))
+Robot.InitPID((9.95, 0.08, 54.3), (21.0, 0.0155, 114.5), 0.45, 0.7, Drive=(Robot.DriveRight, Robot.DriveLeft))
 Odom = InitOdometry(debug=True)
 
 print("\n\033[34m---- Initilization Complete ----\033[0m\n")
@@ -536,7 +500,7 @@ def Autonomous():
         pass
     Robot.StartButton.set_brightness(50)
     Robot.StartButton.set_blink(Color.GREEN, 0.75, 1.25)
-    Robot.Start()
+    #AutoTimer = Timer()
     TrackingThread = Thread(Odom.TrackLocation)
     
 
@@ -551,6 +515,8 @@ def Autonomous():
     # -- Get First Pins --
 
     Odom.ToPoint((6, 0))
+    Odom.ToPoint((0, 6))
+    Odom.ToPoint((0, 0))
 
 
     # -- Get Second Pins --
