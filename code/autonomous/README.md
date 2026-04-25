@@ -7,6 +7,32 @@
   
 ---
 
+## Version 2.1.0 (April 25, 2026):
+
+- Removed `Odom.ToPoint`
+
+### Reasons:
+
+1. Inaccuracies:
+    - No matter how much tuning I did, the PID values and nudging values were never quite right
+    - This caused the robot to always to driving to the point and start slightly adjusting itself for a while
+    - The robot could never drive perfectly to the point and stop, especially not hitting it at the right angle
+
+2. Nudging and Tracking not Working Well Together:
+    - As I found out earlier, the robot can't turn with the perfect accuracy needed to drive perfectly to the point, so nudging was needed
+    - When the nudging moved the robot, it would apply slight power to one side to turn the robot while driving
+    - The tracking is built to track consistent movement between sides
+    - The nudging should have been small enough, but over time it seemed to add significant error to the tracking
+
+3. Time Contraints:
+    - Today (April 25th) is the day before we leave for worlds
+    - We need to get at least some points for autonomous
+    - There isn't enough time for perfectly tuning `Odom.ToPoint`
+
+3. Alternatives:
+    - Previously, autonomous just used PID with pre-defined movements, but over time it got too far off
+    - Now, we can try to simply do the same, but at certain places fix the position by getting `Odom.x` and `Odom.y` and adjust the position to get it perfect
+
 ## Version 2.0.1 (April 14, 2026):
 
 - Added correction for small direction errors while odom is driving
