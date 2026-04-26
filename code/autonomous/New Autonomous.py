@@ -60,26 +60,36 @@ class Init:
         print(DEBUG, "Initilizing Devices")
         if brain.battery.capacity() <= 75:
             self.LowBat()
+
         self.StartButton = Touchled(Ports.PORT6)
         self.Debug = Debug
         self.StartButton.set_fade(FadeType.SLOW)
-        self.StartButton.on(Color.RED)
+        self.StartButton.on(Color.YELLOW)
+
         self.Control = Controller()
+
         self.BeamArm = MotorGroup(Motor(Ports.PORT7), Motor(Ports.PORT1, True))
+        self.BeamArm.set_stopping(HOLD)
+        self.BeamArm.stop()
+
         self.Claws = Pneumatic(Ports.PORT11)
-        self.Claws.pump_on()
         self.Claws.retract(CYLINDER1)
         self.Claws.retract(CYLINDER2)
+
         self.PinArm = MotorGroup(Motor(Ports.PORT10), Motor(Ports.PORT4, True))
         self.PinArm.set_stopping(HOLD)
         self.PinArm.set_position(0, DEGREES)
+        self.PinArm.stop()
+
         for motor in [self.BeamArm, self.PinArm]:
             motor.set_velocity(100, PERCENT)
+
         self.DriveLeft = Motor(Ports.PORT9, True)
         self.DriveRight = Motor(Ports.PORT3)
         self.DriveMain = MotorGroup(self.DriveLeft, self.DriveRight)
         self.DriveMain.set_velocity(100, PERCENT)
         self.DriveMain.set_stopping(BRAKE)
+
         self.BeamArm.reset_position()
         self.PinArm.reset_position()
         self.DriveMain.reset_position()
@@ -92,14 +102,14 @@ class Init:
         brain.screen.print("Low Battery: " + str(batt))
     def BeamClaw(self, Grab):
         if Grab:
-            self.Claws.retract(CYLINDER1)
-        else:
             self.Claws.extend(CYLINDER1)
+        else:
+            self.Claws.retract(CYLINDER1)
     def PinClaw(self, Grab):
         if Grab:
-            self.Claws.retract(CYLINDER2)
-        else:
             self.Claws.extend(CYLINDER2)
+        else:
+            self.Claws.retract(CYLINDER2)
 
 
     def InitPID(self, K, KTurn, Pin, Beam, Drive=(None, None)):
@@ -206,6 +216,7 @@ class Init:
     def PIDTurn(self, Direction, TargetPos, K=None, StationaryWaitTime=120, Reset=True, SpeedScale=1, Timeout=999000):
         global OverallScale
         SpeedScale *= OverallScale
+        print("Turn", Direction, TargetPos, "radians")
         TimeoutTimer = Timer()
         StationaryTime = TimeoutTimer.time(MSEC)
         IsStationary = False
@@ -231,6 +242,7 @@ class Init:
             # Calculate error
             Pos = ((brain_inertial.rotation(TURNS) * 2 * math.pi) - Start) * (-1 if Direction == LEFT else 1)
             Error = TargetPos - Pos
+            print(Error)
 
             # Track accumulated error
             Integral += Error
@@ -382,6 +394,7 @@ class InitOdometry:
     def Reset(self):
         self.x, self.y = self.InitialPos
         brain_inertial.set_heading(0, DEGREES)
+        brain_inertial.set_rotation(0, DEGREES)
 
 
 
@@ -406,12 +419,32 @@ Odom = InitOdometry(debug=True)
 print("\n\033[34m---- Initilization Complete ----\033[0m\n")
 
 
+def FixSlack():
+    CurrentVelocity = -100
+    Robot.DriveRight.spin(FORWARD)
+    Robot.DriveLeft.spin(FORWARD)
+    while CurrentVelocity < -10:
+        CurrentVelocity *= 0.9975
+        Robot.DriveRight.set_velocity(CurrentVelocity, PERCENT)
+        Robot.DriveLeft.set_velocity(CurrentVelocity, PERCENT)
+        wait(1, MSEC)
+    Robot.DriveRight.stop()
+    Robot.DriveLeft.stop()
+
+def LowerBeam():
+    wait(500, MSEC)
+    Robot.BeamArm.spin(REVERSE)
+    wait(500, MSEC)
+    Robot.BeamArm.set_stopping(COAST)
+    Robot.BeamArm.stop()
+    
 
 
 
 def Autonomous():
     global OverallScale
     Robot.StartButton.set_color(Color.BLUE)
+    Robot.Claws.pump_on()
     while not Robot.StartButton.pressing():
         wait(40, MSEC)
     Robot.StartButton.set_fade(FadeType.OFF)
@@ -437,37 +470,72 @@ def Autonomous():
 
     # -- Get First Pins --
 
-    Robot.PIDTurn(RIGHT, 1.57)
+    Thread(LowerBeam)
+    Robot.PIDDrive(FORWARD, 3.2)
+    Robot.PIDTurn(LEFT, 0.17)
+    Robot.PIDDrive(FORWARD, 5.0)
+    Robot.PIDTurn(RIGHT, 0.68)
+    Robot.PIDDrive(FORWARD, 3.4)
+    Robot.PIDTurn(RIGHT, 0.19)
+    Robot.PIDDrive(FORWARD, 4.8, SpeedScale=0.86)
+    Robot.PinClaw(True)
 
 
     # -- Get Second Pins --
 
-    # Placeholder
+    Robot.SpinArm("pin", 35)
+    Robot.PIDDrive(FORWARD, 1.85)
+    Robot.PIDTurn(RIGHT, 0.97)
+    Robot.PIDDrive(FORWARD, 4.25)
+    Robot.PIDTurn(RIGHT, 0.2)
+    Robot.PIDDrive(FORWARD, 2.8)
 
 
     # -- Stack --
 
-    # Placeholder
+    Robot.SpinArm("pin", -35, Timeout=500)
+    Robot.PinClaw(False)
+    Robot.SpinArm("pin", -35, Timeout=300)
+    Robot.PinClaw(True)
+    Robot.SpinArm("pin", 30)
 
 
     # -- Get Beam --
 
-    # Placeholder
+    Robot.PIDTurn(RIGHT, 1.17)
+    Robot.PIDDrive(REVERSE, 2.72, Timeout=600) # should drive 2.42
+    Robot.BeamClaw(True)
 
 
     # -- Flip Pins --
 
-    # Placeholder
+    Robot.SpinArm("pin", 180, Timeout=1400)
+    Robot.PinClaw(False)
+    Robot.SpinArm("pin", 200, Timeout=1400)
 
 
     # -- Put Pin on Standoff --
 
-    # Placeholder
+    Robot.BeamArm.set_stopping(HOLD)
+    Robot.PIDDrive(FORWARD, 1.08)
+    Robot.SpinArm("beam", 100, Timeout=1300)
+    # Fix Position
+    Robot.PIDTurn(RIGHT, 0.1)
+    Robot.PIDDrive(FORWARD, 5.0, Timeout=1700) # should drive 4.28
+    Robot.PIDDrive(REVERSE, 2.45)
 
 
     # -- Put Beam on Standoff Pin --
 
-    # Placeholder
+    Robot.PIDTurn(RIGHT, 2.9)
+    Robot.PIDDrive(REVERSE, 2.45)
+    Robot.BeamArm.set_velocity(40, PERCENT)
+    Robot.BeamArm.spin(REVERSE)
+    wait(100, MSEC)
+    Robot.BeamClaw(False)
+    Robot.BeamArm.stop()
+    Robot.SpinArm("beam", 20, Timeout=100)
+    Robot.PIDDrive(FORWARD, 3.2)
 
 
     brain.play_note(3,0,400)
@@ -476,8 +544,28 @@ def Autonomous():
 
 
 def main():
+    Robot.BeamArm.set_stopping(HOLD)
+
+    # calibrate
+    brain_inertial.calibrate()
+    print(DEBUG, "Calibrated")
+    wait(100, MSEC)
+
+    # wait for first press to start
+    while not Robot.StartButton.pressing():
+        wait(10, MSEC)
+    print(DEBUG, "Button Pressed...")
+
+    # fix slack
+    wait(100, MSEC)
+    print(DEBUG, "Spinning Motors to Fix Slack")
+    FixSlack()
+
+    while Robot.StartButton.pressing():
+        wait(10, MSEC)
+
+    # run auton
     AutoThread = Thread(Autonomous)
-    #brain.buttonCheck.pressed(Autonomous2)
 
 
 main()
