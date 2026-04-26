@@ -7,6 +7,13 @@
   
 ---
 
+## Version 2.1.1 (April 25, 2026):
+
+- Add driving route 'outline' based on measuring movements
+- Movement notes:
+- ![Notes](./images/movement_notes.jpg)
+- Next I will tune the route until it is perfect
+
 ## Version 2.1.0 (April 25, 2026):
 
 - Removed `Odom.ToPoint`

@@ -46,7 +46,7 @@ PIDDriveScale = 1
 PIDValues = {}
 
 
-version = "2.1.0.1"
+version = "2.1.1"
 
 print(DEBUG, "180 Flip Autonomous Code Version:", version)
 
@@ -180,11 +180,11 @@ class Init:
             if LeftDerivative * Target > 0.0:  # Target accounts for going backwards (* -1)
                 LeftDerivative = 0.0
 
-            Difference = LeftError - RightError
+            Difference = RightError - LeftError
 
             # Calculate power and move the robot
-            RightPower = (RightError * Kp) + (RightIntegral * Ki) + (RightDerivative * Kd) + (Difference * Kp / 2)
-            LeftPower = (LeftError * Kp) + (LeftIntegral * Ki) + (LeftDerivative * Kd) - (Difference * Kp / 2)
+            RightPower = (RightError * Kp) + (RightIntegral * Ki) + (RightDerivative * Kd) + (Difference * Kp / 4)
+            LeftPower = (LeftError * Kp) + (LeftIntegral * Ki) + (LeftDerivative * Kd) - (Difference * Kp / 4)
             RightMotor.set_velocity(Min(Clamp(RightPower * Speed)), PERCENT)
             LeftMotor.set_velocity(Min(Clamp(LeftPower * Speed)), PERCENT)
             RightMotor.spin(FORWARD)
@@ -317,6 +317,8 @@ class Init:
                 del TimeoutTimer
                 return
             
+            wait(9, MSEC)
+            
         Motor_.stop()
         del TimeoutTimer
         return
@@ -389,7 +391,7 @@ def Min(Num, Lim=7.5):
 print("\n\033[34m---- Initilizing ----\n\033[0m")
 
 Robot = Init(Debug=True)
-Robot.InitPID((12.95, 0.093, 20.0), (21.0, 0.0155, 114.5), 0.45, 0.7, Drive=(Robot.DriveRight, Robot.DriveLeft))
+Robot.InitPID((12.95, 0.093, 20.0), (22.6, 0.0155, 114.5), 0.7, 0.9, Drive=(Robot.DriveRight, Robot.DriveLeft))
 Odom = InitOdometry(debug=True)
 
 print("\n\033[34m---- Initilization Complete ----\033[0m\n")
@@ -450,9 +452,11 @@ def Autonomous():
     Robot.PIDDrive(FORWARD, 3.2)
     Robot.PIDTurn(LEFT, 0.17)
     Robot.PIDDrive(FORWARD, 5.0)
+    Robot.PinClaw(True)
     Robot.PIDTurn(RIGHT, 0.68)
     Robot.PIDDrive(FORWARD, 3.4)
     Robot.PIDTurn(RIGHT, 0.19)
+    Robot.PinClaw(False)
     Robot.PIDDrive(FORWARD, 4.8, SpeedScale=0.86)
     Robot.PinClaw(True)
 
@@ -461,9 +465,9 @@ def Autonomous():
 
     Robot.SpinArm("pin", 35)
     Robot.PIDDrive(FORWARD, 1.85)
-    Robot.PIDTurn(RIGHT, 0.97)
+    Robot.PIDTurn(RIGHT, 0.61)
     Robot.PIDDrive(FORWARD, 4.25)
-    Robot.PIDTurn(RIGHT, 0.2)
+    Robot.PIDTurn(RIGHT, 0.39)
     Robot.PIDDrive(FORWARD, 2.8)
 
 
@@ -479,7 +483,7 @@ def Autonomous():
     # -- Get Beam --
 
     Robot.PIDTurn(RIGHT, 1.17)
-    Robot.PIDDrive(REVERSE, 2.72, Timeout=600) # should drive 2.42
+    Robot.PIDDrive(REVERSE, 2.72, Timeout=900) # should drive 2.42
     Robot.BeamClaw(True)
 
 
@@ -487,7 +491,7 @@ def Autonomous():
 
     Robot.SpinArm("pin", 180, Timeout=1400)
     Robot.PinClaw(False)
-    Robot.SpinArm("pin", 200, Timeout=1400)
+    Robot.SpinArm("pin", -200, Timeout=1400)
 
 
     # -- Put Pin on Standoff --
@@ -504,7 +508,7 @@ def Autonomous():
     # -- Put Beam on Standoff Pin --
 
     Robot.PIDTurn(RIGHT, 2.9)
-    Robot.PIDDrive(REVERSE, 2.45)
+    Robot.PIDDrive(REVERSE, 2.95, Timeout=1500) # should drive 2.45
     Robot.BeamArm.set_velocity(40, PERCENT)
     Robot.BeamArm.spin(REVERSE)
     wait(100, MSEC)
@@ -546,7 +550,7 @@ def main():
         wait(10, MSEC)
 
     # run auton
-    AutoThread = Thread(Autonomous)
+    Autonomous()
 
 
 main()
