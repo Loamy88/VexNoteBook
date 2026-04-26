@@ -73,6 +73,7 @@ class Init:
         self.BeamArm.stop()
 
         self.Claws = Pneumatic(Ports.PORT11)
+        self.Claws.pump_off()
         self.Claws.retract(CYLINDER1)
         self.Claws.retract(CYLINDER2)
 
@@ -237,12 +238,13 @@ class Init:
         LastError = 0
         if Reset:
             Start = brain_inertial.rotation(TURNS) * 2 * math.pi
+        else:
+            Start = 0.0
         CurrentTime = TimeoutTimer.time(MSEC)
         while TimeoutTimer.time(MSEC) < Timeout:
             # Calculate error
             Pos = ((brain_inertial.rotation(TURNS) * 2 * math.pi) - Start) * (-1 if Direction == LEFT else 1)
             Error = TargetPos - Pos
-            print(Error)
 
             # Track accumulated error
             Integral += Error
@@ -262,7 +264,7 @@ class Init:
             RightMotor.spin(FORWARD)
             LeftMotor.spin(FORWARD)
 
-            if Error < 0.08:
+            if abs(Error) < 0.08:
                 IsStationary = True
                 if CurrentTime - StationaryTime > StationaryWaitTime:
                     RightMotor.stop()
@@ -333,32 +335,6 @@ class InitOdometry:
             self.x = float(x)
         if y != None:
             self.y = float(y)
-
-    def ShowData(self):
-        self.ShowingData = True
-
-        while self.ShowingData:
-            Heading   = "Heading:    " + str(brain_inertial.heading(DEGREES))
-            Rotation  = "Rotation:   " + str(brain_inertial.rotation(DEGREES))
-            PositionX = "X Position: " + str(self.x)
-            PositionY = "Y Position: " + str(self.y)
-            Data = ("- Data - ", Heading, Rotation, PositionX, PositionY)
-
-            brain.screen.set_font(FontType.MONO12)
-
-            brain.screen.clear_screen()
-            brain.screen.set_cursor(1, 1)
-
-            for Value in Data:
-                brain.screen.print(Value)
-                brain.screen.next_row()
-
-            brain.screen.render()
-
-            wait(10, MSEC)
-        
-        self.ShowingData = False
-
 
     def TrackLocation(self, Sampling=False):
         """Tracks the movement of the wheels in radians of motor rotation"""
@@ -548,8 +524,13 @@ def main():
 
     # calibrate
     brain_inertial.calibrate()
+    print(DEBUG, "Calibrating...")
+    while brain_inertial.is_calibrating():
+        wait(10, MSEC)
     print(DEBUG, "Calibrated")
     wait(100, MSEC)
+    brain.play_note(3, 4, 50)
+    brain.play_note(3, 4, 200)
 
     # wait for first press to start
     while not Robot.StartButton.pressing():
