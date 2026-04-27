@@ -1,4 +1,4 @@
-#region VEXcode Generated Robot Configuration
+#region
 from vex import *
 import urandom
 import math
@@ -23,7 +23,7 @@ def initializeRandomSeed():
 # Initialize random seed 
 initializeRandomSeed()
 
-#endregion VEXcode Generated Robot Configuration
+#endregion
 
 # ------------------------------------------
 # 
@@ -38,12 +38,12 @@ initializeRandomSeed()
 print("\n\n\033[34m-====-   Program Start   -====-\033[0m\n")
 
 DEBUG = "\033[35m[DEBUG]\033[0m"
-ERROR = "\033[31m[ERROR]\033[0m"
 
 
 OverallScale = 1.1
 PIDDriveScale = 1
 PIDValues = {}
+
 
 
 version = "2.1.1"
@@ -56,13 +56,11 @@ print(DEBUG, "180 Flip Autonomous Code Version:", version)
 # Initialize Motors
 
 class Init:
-    def __init__(self, Debug=False):
-        print(DEBUG, "Initilizing Devices")
+    def __init__(self):
         if brain.battery.capacity() <= 75:
             self.LowBat()
 
         self.StartButton = Touchled(Ports.PORT6)
-        self.Debug = Debug
         self.StartButton.set_fade(FadeType.SLOW)
         self.StartButton.on(Color.YELLOW)
 
@@ -101,16 +99,11 @@ class Init:
         note = round(batt / 20)
         brain.play_note(3, note, 500)
         brain.screen.print("Low Battery: " + str(batt))
-    def BeamClaw(self, Grab):
+    def Claw(self, Cylinder, Grab):
         if Grab:
-            self.Claws.extend(CYLINDER1)
+            self.Claws.extend(Cylinder)
         else:
-            self.Claws.retract(CYLINDER1)
-    def PinClaw(self, Grab):
-        if Grab:
-            self.Claws.extend(CYLINDER2)
-        else:
-            self.Claws.retract(CYLINDER2)
+            self.Claws.retract(Cylinder)
 
 
     def InitPID(self, K, KTurn, Pin, Beam, Drive=(None, None)):
@@ -131,8 +124,7 @@ class Init:
         TimeoutTimer = Timer()
         StationaryTime = TimeoutTimer.time(MSEC)
         IsStationary = True
-        if self.Debug:
-            print("\033[32mDrive", Direction, TargetPos, "radians?")
+        print("\033[32mDrive", Direction, TargetPos, "radians?")
         RightMotor = self.DefaultRight
         LeftMotor = self.DefaultLeft
         if Reset:
@@ -325,11 +317,10 @@ class Init:
 
 
 class InitOdometry:
-    def __init__(self, x=None, y=None, DoReset=True, InitialPos=(0, 0), debug=False, MarginOfError=0.3):
+    def __init__(self, x=None, y=None, DoReset=True, InitialPos=(0, 0), MarginOfError=0.3):
         self.InitialPos = InitialPos
         self.Margin = MarginOfError
         self.RunningOdom = False
-        self.Debug = debug
         self.x, self.y = 0.0, 0.0
         if DoReset:
             self.Reset()
@@ -367,7 +358,31 @@ class InitOdometry:
 
             if Sampling:
                 self.TrackingLoops += 1
+            
+    def AngleToPoint(self, Point, Direction=FORWARD, StopSmooth=False, SpeedScale=1, TurnScale=1, DriveScale=1):
+        global PIDValues
+        TargetX, TargetY = Point    
+        angle_to_turn_to = math.atan2(TargetY - self.y, TargetX - self.x)
+        current_angle = brain_inertial.heading(TURNS) * math.pi * 2, 4
+        Distance = math.sqrt((TargetX - self.x) ** 2 + (TargetY - self.y) ** 2)
+        if Direction == REVERSE:
+            angle_to_turn_to += math.pi
+        radians_to_turn = (angle_to_turn_to - current_angle) % (2 * math.pi)
 
+        # Get optimal turn direction
+        if radians_to_turn > math.pi:
+            radians_to_turn -= 2 * math.pi
+        if radians_to_turn < -math.pi:
+            radians_to_turn += 2 * math.pi
+        if radians_to_turn < 0:
+            turn_direction = LEFT
+            radians_to_turn *= -1
+        else:
+            turn_direction = RIGHT
+
+        return turn_direction, radians_to_turn
+
+        
         
     def Reset(self):
         self.x, self.y = self.InitialPos
@@ -390,9 +405,9 @@ def Min(Num, Lim=7.5):
 
 print("\n\033[34m---- Initilizing ----\n\033[0m")
 
-Robot = Init(Debug=True)
-Robot.InitPID((12.95, 0.093, 20.0), (22.6, 0.0155, 114.5), 0.7, 0.9, Drive=(Robot.DriveRight, Robot.DriveLeft))
-Odom = InitOdometry(debug=True)
+Robot = Init()
+Robot.InitPID((12.95, 0.093, 20.0), (24.6, 0.0155, 114.5), 1.05, 0.9, Drive=(Robot.DriveRight, Robot.DriveLeft))
+Odom = InitOdometry()
 
 print("\n\033[34m---- Initilization Complete ----\033[0m\n")
 
@@ -421,6 +436,8 @@ def LowerBeam():
 
 def Autonomous():
     global OverallScale
+    PIN = CYLINDER2
+    BEAM = CYLINDER1
     Robot.StartButton.set_color(Color.BLUE)
     Robot.Claws.pump_on()
     while not Robot.StartButton.pressing():
@@ -434,7 +451,7 @@ def Autonomous():
         pass
     Robot.StartButton.set_brightness(50)
     Robot.StartButton.set_blink(Color.GREEN, 0.75, 1.25)
-    #AutoTimer = Timer()
+    AutoTimer = Timer()
     TrackingThread = Thread(Odom.TrackLocation)
     
 
@@ -450,22 +467,22 @@ def Autonomous():
 
     Thread(LowerBeam)
     Robot.PIDDrive(FORWARD, 3.2)
-    Robot.PIDTurn(LEFT, 0.17)
-    Robot.PIDDrive(FORWARD, 5.0)
-    Robot.PinClaw(True)
+    Robot.PIDTurn(LEFT, 0.2)
+    Robot.PIDDrive(FORWARD, 5.05)
+    Robot.Claw(PIN, True)
     Robot.PIDTurn(RIGHT, 0.68)
     Robot.PIDDrive(FORWARD, 3.4)
-    Robot.PIDTurn(RIGHT, 0.19)
-    Robot.PinClaw(False)
-    Robot.PIDDrive(FORWARD, 4.8, SpeedScale=0.86)
-    Robot.PinClaw(True)
+    Robot.PIDTurn(RIGHT, 0.215)
+    Robot.Claw(PIN, False)
+    Robot.PIDDrive(FORWARD, 5.0, SpeedScale=0.86)
+    Robot.Claw(PIN, True)
 
 
     # -- Get Second Pins --
 
-    Robot.SpinArm("pin", 35)
+    Robot.SpinArm("pin", 55)
     Robot.PIDDrive(FORWARD, 1.85)
-    Robot.PIDTurn(RIGHT, 0.61)
+    Robot.PIDTurn(RIGHT, 0.7)
     Robot.PIDDrive(FORWARD, 4.25)
     Robot.PIDTurn(RIGHT, 0.39)
     Robot.PIDDrive(FORWARD, 2.8)
@@ -473,24 +490,29 @@ def Autonomous():
 
     # -- Stack --
 
-    Robot.SpinArm("pin", -35, Timeout=500)
-    Robot.PinClaw(False)
+    Robot.SpinArm("pin", -45, Timeout=500)
+    Robot.Claw(PIN, False)
     Robot.SpinArm("pin", -35, Timeout=300)
-    Robot.PinClaw(True)
+    Robot.PIDDrive(FORWARD, 0.2)
+    Robot.Claw(PIN, True)
     Robot.SpinArm("pin", 30)
 
 
     # -- Get Beam --
 
-    Robot.PIDTurn(RIGHT, 1.17)
-    Robot.PIDDrive(REVERSE, 2.72, Timeout=900) # should drive 2.42
-    Robot.BeamClaw(True)
+    Robot.PIDDrive(REVERSE, 0.6)
+    Robot.PIDTurn(RIGHT, (math.pi / 2), Reset=False)
+    DistanceToPoint = 11.24 - Odom.y
+    Robot.PIDDrive((FORWARD if DistanceToPoint > 0.0 else REVERSE), abs(DistanceToPoint))
+    Robot.PIDTurn(RIGHT, math.pi, Reset=False)
+    Robot.PIDDrive(REVERSE, 2.92, Timeout=1200) # should drive 2.42
+    Robot.Claw(BEAM, True)
 
 
     # -- Flip Pins --
 
     Robot.SpinArm("pin", 180, Timeout=1400)
-    Robot.PinClaw(False)
+    Robot.Claw(PIN, False)
     Robot.SpinArm("pin", -200, Timeout=1400)
 
 
@@ -498,27 +520,30 @@ def Autonomous():
 
     Robot.BeamArm.set_stopping(HOLD)
     Robot.PIDDrive(FORWARD, 1.08)
-    Robot.SpinArm("beam", 100, Timeout=1300)
-    # Fix Position
-    Robot.PIDTurn(RIGHT, 0.1)
+    Robot.SpinArm("beam", 150, Timeout=1600)
+    TurnDirection, TurnAngle = Odom.AngleToPoint((10.5, 11.5))
+    Robot.PIDTurn(TurnDirection, TurnAngle + (-0.15 if TurnDirection == LEFT else 0.15))
     Robot.PIDDrive(FORWARD, 5.0, Timeout=1700) # should drive 4.28
     Robot.PIDDrive(REVERSE, 2.45)
 
 
     # -- Put Beam on Standoff Pin --
 
-    Robot.PIDTurn(RIGHT, 2.9)
+    Robot.PIDTurn(RIGHT, 3.3)
     Robot.PIDDrive(REVERSE, 2.95, Timeout=1500) # should drive 2.45
     Robot.BeamArm.set_velocity(40, PERCENT)
     Robot.BeamArm.spin(REVERSE)
-    wait(100, MSEC)
-    Robot.BeamClaw(False)
+    wait(300, MSEC)
+    Robot.Claw(BEAM, False)
     Robot.BeamArm.stop()
     Robot.SpinArm("beam", 20, Timeout=100)
+    Odom.x = 10.5 + (math.cos(brain_inertial.heading(TURNS) * 2 * math.pi) * 2.5)
+    Odom.y = 11.5 + (math.sin(brain_inertial.heading(TURNS) * 2 * math.pi) * 2.5)
     Robot.PIDDrive(FORWARD, 3.2)
 
 
     brain.play_note(3,0,400)
+    brain.screen.print(str(AutoTimer.time(MSEC)))
     return# brain.program_stop()
 
 
