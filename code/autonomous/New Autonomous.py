@@ -404,7 +404,7 @@ def Autonomous():
     Robot.StartButton.set_brightness(50)
     Robot.StartButton.set_blink(Color.GREEN, 0.75, 1.25)
     AutoTimer = Timer()
-    AutoTimer.event(brain.program_stop, 990)
+    AutoTimer.event(brain.program_stop, 59800)
     TrackingThread = Thread(Odom.TrackLocation)
     
 
